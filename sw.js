@@ -1,4 +1,4 @@
-const CACHE = "couple-rewards-app-v4";
+const CACHE = "couple-rewards-app-v5-pastel";
 const PRECACHE = ["./index.html", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", (event) => {
