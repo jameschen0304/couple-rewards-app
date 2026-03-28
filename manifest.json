@@ -1,0 +1,19 @@
+{
+  "name": "我们的小账本 · 积分与兑换",
+  "short_name": "小账本",
+  "description": "有爱加分、伤害扣分、积分兑换小奖励",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f0c14",
+  "theme_color": "#1a1523",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
