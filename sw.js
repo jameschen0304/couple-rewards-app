@@ -1,4 +1,4 @@
-const CACHE = "couple-rewards-app-v1";
+const CACHE = "couple-rewards-app-v3";
 const PRECACHE = ["./index.html", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -6,10 +6,8 @@ self.addEventListener("install", (event) => {
     caches.open(CACHE).then(async (cache) => {
       for (const url of PRECACHE) {
         try {
-          await cache.add(url);
-        } catch (_) {
-          /* 静态服务器路径不一致时跳过该项 */
-        }
+          await cache.add(new Request(url, { cache: "reload" }));
+        } catch (_) {}
       }
       await self.skipWaiting();
     })
@@ -17,7 +15,21 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys.map((key) => {
+            if (key !== CACHE && key.startsWith("couple-rewards-app")) {
+              return caches.delete(key);
+            }
+            return Promise.resolve();
+          })
+        )
+      )
+      .then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener("fetch", (event) => {
@@ -26,8 +38,17 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
   if (url.pathname.endsWith("sw.js")) return;
 
+  const isHtml =
+    event.request.mode === "navigate" ||
+    url.pathname.endsWith("index.html") ||
+    url.pathname.endsWith("/");
+
+  const networkReq = isHtml
+    ? new Request(event.request, { cache: "reload" })
+    : event.request;
+
   event.respondWith(
-    fetch(event.request)
+    fetch(networkReq)
       .then((res) => {
         if (res.ok) {
           const copy = res.clone();
