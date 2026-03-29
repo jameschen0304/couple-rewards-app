@@ -1,2 +1,5 @@
 .DS_Store
 *.log
+server-proxy/node_modules
+server-proxy/.env
+server-proxy/serviceAccount.json

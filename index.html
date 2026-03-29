@@ -7,6 +7,19 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="manifest" href="manifest.json" />
   <title>我们的小账本 · 积分与兑换</title>
+  <script src="firebase-config.js" onerror="window.__firebaseConfigError=1"></script>
+  <script>
+    (function () {
+      var p = window.COUPLE_REWARDS_API_PROXY;
+      var useProxy = p && String(p).trim();
+      window.__useCoupleRewardsProxy = Boolean(useProxy);
+      if (useProxy) return;
+      document.write(
+        '<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js" onerror="window.__firebaseLoadError=1"><\/script>' +
+        '<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js" onerror="window.__firebaseLoadError=1"><\/script>'
+      );
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -896,10 +909,6 @@
     </section>
   </div>
 
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-  <script src="firebase-config.js"></script>
-
   <div class="toast" id="toast" role="status"></div>
 
   <div class="modal-overlay" id="confirmModal" aria-hidden="true">
@@ -1012,6 +1021,7 @@
 
     let cloudUnsub = null;
     let cloudPushTimer = null;
+    let lastListenerErrorToastAt = 0;
 
     function firebaseConfigured() {
       const c = window.COUPLE_REWARDS_FIREBASE;
@@ -1022,6 +1032,45 @@
       return typeof firebase !== "undefined" && firebase.apps && firebase.apps.length > 0;
     }
 
+    function getProxyBase() {
+      return String(window.COUPLE_REWARDS_API_PROXY || "")
+        .trim()
+        .replace(/\/$/, "");
+    }
+
+    function useProxySync() {
+      return Boolean(getProxyBase());
+    }
+
+    function syncConfigured() {
+      if (useProxySync()) {
+        const b = getProxyBase();
+        return (
+          /^https:\/\//i.test(b) ||
+          /^http:\/\/localhost(?::\d+)?$/i.test(b) ||
+          /^http:\/\/127\.0\.0\.1(?::\d+)?$/i.test(b)
+        );
+      }
+      const c = window.COUPLE_REWARDS_FIREBASE;
+      return Boolean(c && c.apiKey && c.projectId);
+    }
+
+    function syncBackendReady() {
+      if (useProxySync()) return syncConfigured();
+      return firebaseReady();
+    }
+
+    function anyCloudErrorMsg(e, fallback) {
+      if (e && typeof e.status === "number") {
+        if (e.status === 401 || e.status === 403) {
+          return "同步代理拒绝访问：请检查 COUPLE_REWARDS_PROXY_SECRET 是否与服务器一致";
+        }
+        if (e.status >= 500) return "同步代理服务暂时不可用，请稍后重试";
+        if (e.status === 400) return "请求无效：" + String(e.message || "").slice(0, 52);
+      }
+      return firestoreErrorMsg(e, fallback);
+    }
+
     function firestoreErrorMsg(e, fallback) {
       if (!e) return fallback || "请检查网络";
       const code = e.code || "";
@@ -1029,23 +1078,202 @@
         return "无权限：请在 Firebase 控制台发布 Firestore 规则（见 SYNC_SETUP.md）";
       }
       if (code === "unavailable" || code === "deadline-exceeded") {
-        return "连不上云端。微信内或大陆网络常不稳定：请用系统浏览器打开网页，或换 WiFi/流量再试";
+        return "连不上 Google 云端（Firebase）。微信内或部分大陆网络不稳定：请复制链接用 Safari/Chrome 打开，或换 WiFi/流量；本机账本仍在，可「导出备份」";
       }
       const msg = String(e.message || "");
       if (/network|fetch|Failed to fetch|NETWORK_ERROR/i.test(msg)) {
-        return "网络被拦截或超时：不要用微信内置页面试试 Safari/Chrome 打开同一链接";
+        return "网络被拦截或超时：请用系统浏览器打开同一链接，勿用微信内置页；本机数据未丢";
       }
       return fallback || msg.slice(0, 72) || "请检查网络";
     }
 
-    function initFirestoreIfNeeded() {
-      if (!firebaseConfigured()) return false;
-      if (typeof firebase === "undefined") return false;
+    function isRetriableFirestoreError(e) {
+      if (!e) return false;
+      const code = e.code || "";
+      if (code === "permission-denied") return false;
+      if (code === "unavailable" || code === "deadline-exceeded" || code === "aborted") return true;
+      return /network|fetch|Failed to fetch|NETWORK_ERROR/i.test(String(e.message || ""));
+    }
+
+    function sleep(ms) {
+      return new Promise((r) => setTimeout(r, ms));
+    }
+
+    async function ledgerSetWithRetry(docRef, data, setOptions) {
+      const waits = [0, 700, 1800, 3200];
+      let lastErr;
+      for (let i = 0; i < waits.length; i++) {
+        if (waits[i]) await sleep(waits[i]);
+        try {
+          await docRef.set(data, setOptions);
+          return;
+        } catch (e) {
+          lastErr = e;
+          if (!isRetriableFirestoreError(e) || i === waits.length - 1) throw e;
+        }
+      }
+      throw lastErr;
+    }
+
+    async function ledgerGetWithRetry(docRef) {
+      const waits = [0, 800, 2000];
+      let lastErr;
+      for (let i = 0; i < waits.length; i++) {
+        if (waits[i]) await sleep(waits[i]);
+        try {
+          return await docRef.get();
+        } catch (e) {
+          lastErr = e;
+          if (!isRetriableFirestoreError(e) || i === waits.length - 1) throw e;
+        }
+      }
+      throw lastErr;
+    }
+
+    function toastListenerErrorDebounced(err) {
+      const now = Date.now();
+      if (now - lastListenerErrorToastAt < 50000) return;
+      lastListenerErrorToastAt = now;
+      toast(anyCloudErrorMsg(err, "监听云端中断，将自动重试"));
+    }
+
+    function isRetriableProxyError(e) {
+      if (e && typeof e.status === "number") {
+        return e.status >= 500 || e.status === 429 || e.status === 408;
+      }
+      return /network|fetch|Failed to fetch|Load failed|aborted|NetworkError/i.test(
+        String((e && e.message) || e || "")
+      );
+    }
+
+    async function proxyFetchJson(path, init) {
+      const base = getProxyBase();
+      const secret = (window.COUPLE_REWARDS_PROXY_SECRET || "").trim();
+      const headers = { Accept: "application/json", ...(init && init.headers) };
+      if (init && init.body != null && !headers["Content-Type"]) {
+        headers["Content-Type"] = "application/json";
+      }
+      if (secret) headers["X-Proxy-Secret"] = secret;
+      const r = await fetch(base + path, { ...init, headers });
+      const text = await r.text();
+      let json = null;
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch (_) {}
+      if (!r.ok) {
+        const err = new Error(
+          (json && json.error) || text || r.statusText || "request failed"
+        );
+        err.status = r.status;
+        err.payload = json;
+        throw err;
+      }
+      return json;
+    }
+
+    async function proxyLedgerSetWithRetry(id, appData, merge) {
+      const waits = [0, 700, 1800, 3200];
+      let lastErr;
+      for (let i = 0; i < waits.length; i++) {
+        if (waits[i]) await sleep(waits[i]);
+        try {
+          const q = merge ? "?merge=1" : "";
+          await proxyFetchJson(`/v1/ledger/${id}${q}`, {
+            method: "PUT",
+            body: JSON.stringify({ data: appData, merge: Boolean(merge) }),
+          });
+          return;
+        } catch (e) {
+          lastErr = e;
+          if (!isRetriableProxyError(e) || i === waits.length - 1) throw e;
+        }
+      }
+      throw lastErr;
+    }
+
+    async function proxyLedgerGetWithRetry(id) {
+      const waits = [0, 800, 2000];
+      let lastErr;
+      for (let i = 0; i < waits.length; i++) {
+        if (waits[i]) await sleep(waits[i]);
+        try {
+          const j = await proxyFetchJson(`/v1/ledger/${id}`, { method: "GET" });
+          if (!j || !j.exists) return { exists: false, doc: null };
+          return { exists: true, doc: { data: j.data } };
+        } catch (e) {
+          lastErr = e;
+          if (!isRetriableProxyError(e) || i === waits.length - 1) throw e;
+        }
+      }
+      throw lastErr;
+    }
+
+    function attachProxyListener(syncId) {
+      detachCloudListener();
+      if (!syncId || !useProxySync()) return;
+      const secret = (window.COUPLE_REWARDS_PROXY_SECRET || "").trim();
+      const qs = secret ? `?s=${encodeURIComponent(secret)}` : "";
+      const url = `${getProxyBase()}/v1/ledger/${syncId}/stream${qs}`;
+      let es;
+      try {
+        es = new EventSource(url);
+      } catch (e) {
+        console.error(e);
+        toastListenerErrorDebounced(e);
+        return;
+      }
+      es.onmessage = (ev) => {
+        try {
+          const parsed = JSON.parse(ev.data);
+          if (!parsed || parsed.data == null) return;
+          const next = normalizeImportedPayload(parsed.data);
+          if (!next) return;
+          Object.assign(state, next);
+          renderPersonUI();
+          renderBalance();
+          renderGoodList();
+          renderBadList();
+          renderRewardList();
+          renderHistory();
+          saveState({ skipCloud: true });
+          updateSyncUI();
+        } catch (_) {}
+      };
+      es.onerror = () => {
+        const elStat = document.getElementById("syncStatus");
+        if (elStat && getSyncId()) {
+          elStat.textContent =
+            "暂时连不上同步代理，将自动重连。本机数据不会丢，可先「导出备份」。";
+        }
+        toastListenerErrorDebounced({ message: "stream error" });
+      };
+      cloudUnsub = () => {
+        try {
+          es.close();
+        } catch (_) {}
+      };
+    }
+
+    function initFirestoreIfNeeded(opts) {
+      const silent = opts && opts.silent;
+      if (!firebaseConfigured()) {
+        if (!silent) toast("请先在 firebase-config.js 中填写 Firebase 配置并部署");
+        return false;
+      }
+      if (typeof firebase === "undefined" || window.__firebaseLoadError) {
+        if (!silent) {
+          toast("Firebase 脚本未加载（多因网络拦截 Google）。请用 Safari/Chrome 打开本页或换网络");
+        }
+        return false;
+      }
+      if (window.__firebaseConfigError) {
+        if (!silent) toast("firebase-config.js 加载失败，请刷新页面");
+        return false;
+      }
       if (firebase.apps && firebase.apps.length > 0) return true;
       try {
         firebase.initializeApp(window.COUPLE_REWARDS_FIREBASE);
         const db = firebase.firestore();
-        /* 微信内置浏览器等环境 WebSocket 常被拦，强制长轮询可提高连通率 */
         try {
           db.settings({ experimentalForceLongPolling: true });
         } catch (_) {}
@@ -1053,9 +1281,31 @@
         return true;
       } catch (e) {
         console.error(e);
-        toast("Firebase 初始化失败，请检查 firebase-config.js");
+        if (!silent) toast("Firebase 初始化失败，请检查 firebase-config.js");
         return false;
       }
+    }
+
+    function initSyncIfNeeded(opts) {
+      const silent = opts && opts.silent;
+      if (useProxySync()) {
+        if (!getProxyBase()) {
+          if (!silent) toast("请在 firebase-config.js 填写 COUPLE_REWARDS_API_PROXY");
+          return false;
+        }
+        if (!syncConfigured()) {
+          if (!silent) {
+            toast("COUPLE_REWARDS_API_PROXY 须为 https 开头（本地调试可用 http://localhost）");
+          }
+          return false;
+        }
+        if (window.__firebaseConfigError) {
+          if (!silent) toast("firebase-config.js 加载失败，请刷新页面");
+          return false;
+        }
+        return true;
+      }
+      return initFirestoreIfNeeded(opts);
     }
 
     function getSyncPayload() {
@@ -1073,23 +1323,28 @@
     }
 
     function scheduleCloudPush() {
-      if (!getSyncId() || !firebaseReady()) return;
+      if (!getSyncId() || !syncBackendReady()) return;
       clearTimeout(cloudPushTimer);
       cloudPushTimer = setTimeout(async () => {
         const id = getSyncId();
         if (!id) return;
         try {
-          const db = firebase.firestore();
-          await db.collection("ledgers").doc(id).set(
-            {
-              data: getSyncPayload(),
-              updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            },
-            { merge: true }
-          );
+          if (useProxySync()) {
+            await proxyLedgerSetWithRetry(id, getSyncPayload(), true);
+          } else {
+            const db = firebase.firestore();
+            await ledgerSetWithRetry(
+              db.collection("ledgers").doc(id),
+              {
+                data: getSyncPayload(),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+          }
         } catch (e) {
           console.error(e);
-          toast(firestoreErrorMsg(e, "云端保存失败，请检查网络"));
+          toast(anyCloudErrorMsg(e, "云端保存失败，请检查网络"));
         }
       }, 500);
     }
@@ -1103,7 +1358,12 @@
 
     function attachCloudListener(syncId) {
       detachCloudListener();
-      if (!syncId || !firebaseReady()) return;
+      if (!syncId) return;
+      if (useProxySync()) {
+        attachProxyListener(syncId);
+        return;
+      }
+      if (!firebaseReady()) return;
       const db = firebase.firestore();
       cloudUnsub = db.collection("ledgers").doc(syncId).onSnapshot(
         (snap) => {
@@ -1125,6 +1385,12 @@
         },
         (err) => {
           console.error(err);
+          const elStat = document.getElementById("syncStatus");
+          if (elStat && getSyncId()) {
+            elStat.textContent =
+              "暂时连不上云端（多为网络）。请用系统浏览器打开本页；本机已保存的数据不会丢。";
+          }
+          toastListenerErrorDebounced(err);
         }
       );
     }
@@ -1139,25 +1405,26 @@
       const btnJoin = document.getElementById("joinSyncRoom");
       if (!elAct || !elHelp) return;
 
-      if (!firebaseConfigured()) {
+      if (!syncConfigured()) {
         elHelp.textContent =
-          "云端同步需先在仓库里填写 firebase-config.js 并部署（步骤见 SYNC_SETUP.md）。未配置前无法使用同步。";
+          "云端同步：直连需配置 Firebase；国内建议配置 COUPLE_REWARDS_API_PROXY 走自建代理（见 SYNC_SETUP.md）。仍可点下方按钮查看提示。";
         elAct.hidden = true;
         elInact.hidden = false;
-        if (btnCreate) btnCreate.disabled = true;
-        if (btnJoin) btnJoin.disabled = true;
         return;
       }
-      if (btnCreate) btnCreate.disabled = false;
-      if (btnJoin) btnJoin.disabled = false;
 
       if (getSyncId()) {
-        elHelp.textContent =
-          "两台设备使用同一同步码即可实时同步。微信内若拉取失败，请用系统浏览器打开同一网址再绑定。请勿把同步码发给陌生人。";
+        elHelp.textContent = useProxySync()
+          ? "两台设备使用同一同步码即可经国内代理实时同步。请勿把同步码发给陌生人。"
+          : "两台设备使用同一同步码即可实时同步。微信内若拉取失败，请用系统浏览器打开同一网址再绑定。请勿把同步码发给陌生人。";
         elAct.hidden = false;
         elInact.hidden = true;
         if (elCode) elCode.textContent = getSyncId();
-        if (elStat) elStat.textContent = firebaseReady() ? "已连接云端，修改会自动同步。" : "正在连接云端…";
+        if (elStat) {
+          elStat.textContent = syncBackendReady()
+            ? "已连接云端，修改会自动同步。"
+            : "正在连接云端…";
+        }
       } else {
         elHelp.textContent =
           "由一人点「生成同步码」，把码发给对方，对方在本页粘贴后点「绑定」即可共用一份数据。";
@@ -1169,7 +1436,7 @@
     function saveState(options) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       const skipCloud = options && options.skipCloud;
-      if (!skipCloud && getSyncId() && firebaseReady()) scheduleCloudPush();
+      if (!skipCloud && getSyncId() && syncBackendReady()) scheduleCloudPush();
     }
 
     function normalizeImportedPayload(raw) {
@@ -1767,19 +2034,38 @@
     });
 
     document.getElementById("createSyncRoom").addEventListener("click", async () => {
-      if (!firebaseConfigured()) {
-        toast("请先按 SYNC_SETUP.md 配置 firebase-config.js");
+      const btn = document.getElementById("createSyncRoom");
+      if (!syncConfigured()) {
+        toast("请配置 Firebase 直连，或填写 COUPLE_REWARDS_API_PROXY 走代理（见 SYNC_SETUP.md）");
         return;
       }
-      if (!initFirestoreIfNeeded()) return;
+      if (!useProxySync()) {
+        if (typeof firebase === "undefined" || window.__firebaseLoadError) {
+          toast("Firebase 未加载，请用系统浏览器打开本页或换网络（微信内常失败）");
+          return;
+        }
+      }
+      if (window.__firebaseConfigError) {
+        toast("配置脚本未加载，请下拉刷新页面");
+        return;
+      }
+      if (!initSyncIfNeeded()) return;
+      btn.disabled = true;
       const id = generateSyncId();
       setSyncId(id);
       attachCloudListener(id);
       try {
-        await firebase.firestore().collection("ledgers").doc(id).set({
-          data: getSyncPayload(),
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-        });
+        if (useProxySync()) {
+          await proxyLedgerSetWithRetry(id, getSyncPayload(), false);
+        } else {
+          await ledgerSetWithRetry(
+            firebase.firestore().collection("ledgers").doc(id),
+            {
+              data: getSyncPayload(),
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            }
+          );
+        }
         updateSyncUI();
         renderAll();
         toast("已生成同步码，请发给对方绑定");
@@ -1787,29 +2073,48 @@
         console.error(e);
         setSyncId("");
         detachCloudListener();
-        toast(firestoreErrorMsg(e, "上传失败，请检查网络与 Firestore 规则"));
+        toast(anyCloudErrorMsg(e, "上传失败，请检查网络与 Firestore 规则"));
+      } finally {
+        btn.disabled = false;
       }
     });
 
     document.getElementById("joinSyncRoom").addEventListener("click", async () => {
-      if (!firebaseConfigured()) {
-        toast("请先配置 firebase-config.js");
+      const btnJ = document.getElementById("joinSyncRoom");
+      if (!syncConfigured()) {
+        toast("请配置 Firebase 或 COUPLE_REWARDS_API_PROXY（见 SYNC_SETUP.md）");
         return;
+      }
+      if (!useProxySync()) {
+        if (typeof firebase === "undefined" || window.__firebaseLoadError) {
+          toast("Firebase 未加载，请用系统浏览器打开本页或换网络");
+          return;
+        }
       }
       const id = normalizeSyncIdInput(document.getElementById("joinSyncInput").value);
       if (id.length !== 24) {
         toast("同步码应为 24 位（仅数字与小写字母 a-f），请完整粘贴");
         return;
       }
-      if (!initFirestoreIfNeeded()) return;
+      if (!initSyncIfNeeded()) return;
+      btnJ.disabled = true;
       try {
-        const ref = firebase.firestore().collection("ledgers").doc(id);
-        const snap = await ref.get();
-        if (!snap.exists) {
+        let result;
+        if (useProxySync()) {
+          result = await proxyLedgerGetWithRetry(id);
+        } else {
+          const ref = firebase.firestore().collection("ledgers").doc(id);
+          const snap = await ledgerGetWithRetry(ref);
+          result = {
+            exists: snap.exists,
+            doc: snap.exists ? snap.data() : null,
+          };
+        }
+        if (!result.exists) {
           toast("云端暂无此码，请让对方先生成同步码");
           return;
         }
-        const d = snap.data();
+        const d = result.doc;
         if (!d || !d.data) {
           toast("云端数据异常");
           return;
@@ -1828,7 +2133,9 @@
         toast("已绑定，与云端同步中");
       } catch (e) {
         console.error(e);
-        toast(firestoreErrorMsg(e, "拉取失败，请检查网络"));
+        toast(anyCloudErrorMsg(e, "拉取失败，请检查网络"));
+      } finally {
+        btnJ.disabled = false;
       }
     });
 
@@ -1853,7 +2160,7 @@
     });
 
     if (getSyncId()) {
-      if (initFirestoreIfNeeded()) {
+      if (initSyncIfNeeded({ silent: true })) {
         attachCloudListener(getSyncId());
       }
     }

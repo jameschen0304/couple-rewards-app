@@ -1,4 +1,4 @@
-const CACHE = "couple-rewards-app-v8-wechat-longpoll";
+const CACHE = "couple-rewards-app-v11-sync-proxy";
 const PRECACHE = [
   "./index.html",
   "./manifest.json",
