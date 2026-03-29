@@ -1182,12 +1182,13 @@
     async function ensureProxyAwake() {
       const base = getProxyBase();
       if (!base) return false;
-      const delays = [0, 3500, 7000, 11000, 15000];
+      const delays = [0, 4000, 9000, 16000, 24000, 32000, 42000, 52000];
+      const perTryMs = 48000;
       for (let i = 0; i < delays.length; i++) {
         if (delays[i]) await sleep(delays[i]);
         try {
           const ctrl = new AbortController();
-          const tm = setTimeout(() => ctrl.abort(), 22000);
+          const tm = setTimeout(() => ctrl.abort(), perTryMs);
           const r = await fetch(base + "/health", {
             method: "GET",
             cache: "no-store",
@@ -1199,6 +1200,20 @@
         } catch (_) {}
       }
       return false;
+    }
+
+    async function ensureProxyAwakeOrToast() {
+      const ok = await ensureProxyAwake();
+      if (!ok) {
+        const b = getProxyBase();
+        toast(
+          "代理仍在冷启动或网络不通。请新开标签打开 " +
+            b +
+            "/health ，等到 JSON 里出现 ok:true 再回到本页重试。若在 Railway 部署，可在项目里关闭「缩容到零 / Serverless」避免休眠。",
+          14000
+        );
+      }
+      return ok;
     }
 
     async function ledgerSetWithRetry(docRef, data, setOptions) {
@@ -2441,7 +2456,7 @@
         attachCloudListener(id);
         if (useProxySync()) {
           toast("正在唤醒同步服务（休眠后可能要近 1 分钟）…", 120000);
-          await ensureProxyAwake();
+          await ensureProxyAwakeOrToast();
           toast("正在上传账本到云端…", 90000);
           await proxyLedgerSetWithRetry(id, getSyncPayload(), false);
         } else {
@@ -2505,7 +2520,7 @@
         let result;
         if (useProxySync()) {
           toast("正在唤醒同步服务（休眠后可能要近 1 分钟）…", 120000);
-          await ensureProxyAwake();
+          await ensureProxyAwakeOrToast();
           toast("正在从云端拉取数据…", 90000);
           result = await proxyLedgerGetWithRetry(id);
         } else {
@@ -2610,7 +2625,7 @@
         setSyncId("");
         if (useProxySync()) {
           toast("正在唤醒同步服务…", 120000);
-          await ensureProxyAwake();
+          await ensureProxyAwakeOrToast();
           toast("正在上传账本…", 90000);
           await accountPutFullProxy();
         } else {
@@ -2691,7 +2706,7 @@
         let remoteData = null;
         if (useProxySync()) {
           toast("正在拉取云端…", 90000);
-          await ensureProxyAwake();
+          await ensureProxyAwakeOrToast();
           const j = await accountFetchJson("/v1/me", { method: "GET" }, 65000);
           if (j && j.exists && j.data) remoteData = j.data;
         } else {
