@@ -1065,8 +1065,23 @@
         if (e.status === 401 || e.status === 403) {
           return "同步代理拒绝访问：请检查 COUPLE_REWARDS_PROXY_SECRET 是否与服务器一致";
         }
-        if (e.status >= 500) return "同步代理服务暂时不可用，请稍后重试";
+        if (e.status === 503) {
+          const m = String(e.message || "");
+          if (/firestore|FIREBASE_SERVICE_ACCOUNT/i.test(m)) {
+            return "同步服务未连上数据库：请在 Railway 检查变量 FIREBASE_SERVICE_ACCOUNT_JSON 是否完整正确";
+          }
+          return "同步代理繁忙或正在启动，请 30 秒后再试「绑定并拉取」";
+        }
+        if (e.status === 408) {
+          return "拉取超时（手机网络慢或代理冷启动）：请换 WiFi/流量，等 30 秒后重试";
+        }
+        if (e.status >= 500) {
+          return "同步代理无响应或正在冷启动：请稍等后重试；勿用微信内置页，尽量用 Safari/Chrome";
+        }
         if (e.status === 400) return "请求无效：" + String(e.message || "").slice(0, 52);
+      }
+      if (e && e.name === "AbortError") {
+        return "请求超时：请换网络或稍后再试「绑定并拉取」";
       }
       return firestoreErrorMsg(e, fallback);
     }
@@ -1081,7 +1096,10 @@
         return "连不上 Google 云端（Firebase）。微信内或部分大陆网络不稳定：请复制链接用 Safari/Chrome 打开，或换 WiFi/流量；本机账本仍在，可「导出备份」";
       }
       const msg = String(e.message || "");
-      if (/network|fetch|Failed to fetch|NETWORK_ERROR/i.test(msg)) {
+      if (/timeout|AbortError|aborted/i.test(msg)) {
+        return "连接超时：手机可换 WiFi/流量，勿用微信内置页，稍后再试";
+      }
+      if (/network|fetch|Failed to fetch|NETWORK_ERROR|Load failed/i.test(msg)) {
         return "网络被拦截或超时：请用系统浏览器打开同一链接，勿用微信内置页；本机数据未丢";
       }
       return fallback || msg.slice(0, 72) || "请检查网络";
@@ -1138,15 +1156,19 @@
     }
 
     function isRetriableProxyError(e) {
+      if (e && e.name === "AbortError") return true;
       if (e && typeof e.status === "number") {
-        return e.status >= 500 || e.status === 429 || e.status === 408;
+        if (e.status === 503 && /Firestore unavailable|not configured|FIREBASE_SERVICE_ACCOUNT/i.test(String(e.message))) {
+          return false;
+        }
+        return e.status >= 500 || e.status === 429 || e.status === 408 || e.status === 503;
       }
-      return /network|fetch|Failed to fetch|Load failed|aborted|NetworkError/i.test(
+      return /network|fetch|Failed to fetch|Load failed|aborted|NetworkError|timeout/i.test(
         String((e && e.message) || e || "")
       );
     }
 
-    async function proxyFetchJson(path, init) {
+    async function proxyFetchJson(path, init, timeoutMs) {
       const base = getProxyBase();
       const secret = (window.COUPLE_REWARDS_PROXY_SECRET || "").trim();
       const headers = { Accept: "application/json", ...(init && init.headers) };
@@ -1154,7 +1176,28 @@
         headers["Content-Type"] = "application/json";
       }
       if (secret) headers["X-Proxy-Secret"] = secret;
-      const r = await fetch(base + path, { ...init, headers });
+      const ms = timeoutMs != null ? timeoutMs : 55000;
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), ms);
+      let r;
+      try {
+        r = await fetch(base + path, {
+          ...init,
+          headers,
+          cache: "no-store",
+          signal: ctrl.signal,
+        });
+      } catch (err) {
+        if (err && err.name === "AbortError") {
+          const te = new Error("timeout");
+          te.status = 408;
+          te.name = "AbortError";
+          throw te;
+        }
+        throw err;
+      } finally {
+        clearTimeout(timer);
+      }
       const text = await r.text();
       let json = null;
       try {
@@ -1162,7 +1205,7 @@
       } catch (_) {}
       if (!r.ok) {
         const err = new Error(
-          (json && json.error) || text || r.statusText || "request failed"
+          (json && json.error) || text.slice(0, 200) || r.statusText || "request failed"
         );
         err.status = r.status;
         err.payload = json;
@@ -1192,12 +1235,12 @@
     }
 
     async function proxyLedgerGetWithRetry(id) {
-      const waits = [0, 800, 2000];
+      const waits = [0, 2500, 6000, 12000, 20000];
       let lastErr;
       for (let i = 0; i < waits.length; i++) {
         if (waits[i]) await sleep(waits[i]);
         try {
-          const j = await proxyFetchJson(`/v1/ledger/${id}`, { method: "GET" });
+          const j = await proxyFetchJson(`/v1/ledger/${id}`, { method: "GET" }, 65000);
           if (!j || !j.exists) return { exists: false, doc: null };
           return { exists: true, doc: { data: j.data } };
         } catch (e) {
