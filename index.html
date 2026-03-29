@@ -1040,7 +1040,14 @@
 
     function initFirestoreIfNeeded() {
       if (!firebaseConfigured()) return false;
-      if (typeof firebase === "undefined") return false;
+      if (typeof firebase === "undefined") {
+        toast("Firebase SDK 未加载：请检查网络，建议用 Safari/Chrome 打开页面重试");
+        return false;
+      }
+      if (typeof firebase.firestore !== "function") {
+        toast("Firestore SDK 未加载：请刷新后重试，或检查脚本是否被拦截");
+        return false;
+      }
       if (firebase.apps && firebase.apps.length > 0) return true;
       try {
         firebase.initializeApp(window.COUPLE_REWARDS_FIREBASE);
@@ -1142,6 +1149,15 @@
       if (!firebaseConfigured()) {
         elHelp.textContent =
           "云端同步需先在仓库里填写 firebase-config.js 并部署（步骤见 SYNC_SETUP.md）。未配置前无法使用同步。";
+        elAct.hidden = true;
+        elInact.hidden = false;
+        if (btnCreate) btnCreate.disabled = true;
+        if (btnJoin) btnJoin.disabled = true;
+        return;
+      }
+      if (typeof firebase === "undefined" || typeof firebase.firestore !== "function") {
+        elHelp.textContent =
+          "云同步脚本加载失败（常见于微信内置页面或网络拦截）。请用 Safari/Chrome 打开同一链接并刷新。";
         elAct.hidden = true;
         elInact.hidden = false;
         if (btnCreate) btnCreate.disabled = true;
