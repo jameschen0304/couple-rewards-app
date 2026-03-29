@@ -1122,6 +1122,11 @@
           "Google Cloud 尚未启用「Cloud Firestore API」。请打开：console.cloud.google.com → 选中你的 Firebase 项目 →「API 和服务」→「启用 API」→ 搜索「Cloud Firestore API」并启用；也可直接访问控制台报错里的 google.com/apis/... 链接。启用后等待 2～5 分钟再在代理上重试。"
         );
       }
+      if (/\bNOT_FOUND\b/i.test(msgAll) || /5 NOT_FOUND/.test(msgAll)) {
+        return (
+          "Firestore 里可能还没有「创建数据库」：打开 Firebase 控制台 → Firestore Database →「创建数据库」→ 选择区域（与项目一致即可）并完成向导。创建完成后等 1～2 分钟，再试账号登录/同步。仅启用 Cloud API 而不建库会出现 NOT_FOUND。"
+        );
+      }
       if (e && typeof e.status === "number") {
         if (e.status === 401) {
           return getAccountUser()
