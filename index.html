@@ -646,7 +646,7 @@
       font-weight: 600;
       opacity: 0;
       pointer-events: none;
-      z-index: 100;
+      z-index: 250;
       transition: transform 0.4s var(--ease), opacity 0.3s var(--ease);
       max-width: min(90vw, 360px);
       text-align: center;
@@ -664,7 +664,7 @@
       background: rgba(30, 70, 55, 0.38);
       backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
-      z-index: 50;
+      z-index: 400;
       display: flex;
       align-items: flex-end;
       justify-content: center;
@@ -1596,11 +1596,19 @@
       confirmCancel: document.getElementById("confirmCancel"),
     };
 
-    function toast(msg) {
+    function toast(msg, durationMs) {
       els.toast.textContent = msg;
       els.toast.classList.add("show");
       clearTimeout(toast._t);
-      toast._t = setTimeout(() => els.toast.classList.remove("show"), 2200);
+      const ms = durationMs != null ? durationMs : 2200;
+      if (ms > 0) {
+        toast._t = setTimeout(() => els.toast.classList.remove("show"), ms);
+      }
+    }
+
+    function hideToast() {
+      els.toast.classList.remove("show");
+      clearTimeout(toast._t);
     }
 
     let confirmResolver = null;
@@ -2093,7 +2101,10 @@
         return;
       }
       if (!initSyncIfNeeded()) return;
+      const createLabel = btn.textContent;
       btn.disabled = true;
+      btn.textContent = "上传中…";
+      toast("正在上传账本到云端，请稍候", 6000);
       const id = generateSyncId();
       setSyncId(id);
       attachCloudListener(id);
@@ -2118,7 +2129,9 @@
         detachCloudListener();
         toast(anyCloudErrorMsg(e, "上传失败，请检查网络与 Firestore 规则"));
       } finally {
+        hideToast();
         btn.disabled = false;
+        btn.textContent = createLabel;
       }
     });
 
@@ -2140,7 +2153,10 @@
         return;
       }
       if (!initSyncIfNeeded()) return;
+      const joinLabel = btnJ.textContent;
       btnJ.disabled = true;
+      btnJ.textContent = "拉取中…";
+      toast("正在从云端拉取，网络慢时可能要一分钟左右", 9000);
       try {
         let result;
         if (useProxySync()) {
@@ -2176,9 +2192,11 @@
         toast("已绑定，与云端同步中");
       } catch (e) {
         console.error(e);
-        toast(anyCloudErrorMsg(e, "拉取失败，请检查网络"));
+        toast(anyCloudErrorMsg(e, "拉取失败，请检查网络"), 4500);
       } finally {
+        hideToast();
         btnJ.disabled = false;
+        btnJ.textContent = joinLabel;
       }
     });
 
