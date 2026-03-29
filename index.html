@@ -188,8 +188,8 @@
       position: relative;
       z-index: 1;
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
       margin-bottom: 16px;
     }
 
@@ -203,8 +203,19 @@
       transition: box-shadow 0.25s var(--ease), transform 0.25s var(--ease);
     }
 
-    .score-mini:last-child {
+    .score-mini:nth-child(2) {
       background: linear-gradient(145deg, #ecf8f6, #ffffff);
+    }
+
+    .score-mini.score-mini-family {
+      background: linear-gradient(145deg, #f5f8ec, #fffef8);
+      border-color: rgba(155, 196, 74, 0.35);
+    }
+
+    .score-mini.score-mini-family .mini-value {
+      background: linear-gradient(180deg, #6b7a2e 0%, #9bc44a 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
     }
 
     .score-mini .mini-label {
@@ -231,8 +242,8 @@
       position: relative;
       z-index: 1;
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
       padding-top: 8px;
       border-top: 1px dashed var(--border-soft);
       margin-top: 4px;
@@ -264,9 +275,9 @@
       background: transparent;
       color: var(--muted);
       font-family: inherit;
-      font-size: 0.875rem;
+      font-size: 0.78rem;
       font-weight: 600;
-      padding: 12px 10px;
+      padding: 12px 6px;
       min-height: 46px;
       border-radius: calc(var(--radius-sm) - 6px);
       cursor: pointer;
@@ -625,6 +636,89 @@
     .history-item .delta.minus { color: #2d8a7c; }
     .history-item .delta.redeem { color: #5a8018; }
 
+    .history-subtabs {
+      display: flex;
+      gap: 6px;
+      padding: 5px;
+      margin-bottom: 12px;
+      background: var(--surface);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-soft);
+      box-shadow: 0 2px 14px rgba(80, 170, 120, 0.08);
+    }
+
+    .history-subtabs button {
+      flex: 1;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-family: inherit;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 10px 6px;
+      min-height: 40px;
+      border-radius: calc(var(--radius-sm) - 6px);
+      cursor: pointer;
+      transition: color 0.2s var(--ease), background 0.2s var(--ease), box-shadow 0.2s var(--ease);
+    }
+
+    .history-subtabs button.active {
+      background: linear-gradient(180deg, #ffffff, #eefaf4);
+      color: #1a6b45;
+      box-shadow: 0 2px 10px rgba(60, 160, 110, 0.12), 0 0 0 1px rgba(90, 200, 140, 0.35);
+    }
+
+    .summary-card {
+      background: var(--surface2);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-xs);
+      padding: 14px 14px 12px;
+      margin-bottom: 12px;
+    }
+
+    .summary-card .summary-range {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      margin-bottom: 10px;
+    }
+
+    .summary-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.875rem;
+      padding: 8px 10px;
+      background: var(--surface);
+      border-radius: 12px;
+      border: 1px solid var(--border-soft);
+    }
+
+    .summary-row .net {
+      font-family: var(--font-num);
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .summary-row .net.pos {
+      color: #1a8f55;
+    }
+
+    .summary-row .net.neg {
+      color: #c45c4a;
+    }
+
+    .summary-row .net.zero {
+      color: var(--muted);
+    }
+
     .toolbar {
       display: flex;
       gap: 10px;
@@ -767,7 +861,7 @@
     </header>
 
     <div class="score-card">
-      <div class="label">两个人的积分罐</div>
+      <div class="label">家庭 · 个人积分</div>
       <div class="score-dual">
         <div class="score-mini">
           <div class="mini-label" id="labelHusband">老公</div>
@@ -777,15 +871,23 @@
           <div class="mini-label" id="labelWife">老婆</div>
           <div class="mini-value" id="balanceWife">0</div>
         </div>
+        <div class="score-mini score-mini-family">
+          <div class="mini-label" id="labelFamily">家庭</div>
+          <div class="mini-value" id="balanceFamily">0</div>
+        </div>
       </div>
       <div class="names-row">
         <div class="field">
-          <label for="nameHusbandInput">左边这位称呼</label>
+          <label for="nameHusbandInput">左边称呼</label>
           <input id="nameHusbandInput" type="text" maxlength="8" placeholder="老公" />
         </div>
         <div class="field">
-          <label for="nameWifeInput">右边这位称呼</label>
+          <label for="nameWifeInput">右边称呼</label>
           <input id="nameWifeInput" type="text" maxlength="8" placeholder="老婆" />
+        </div>
+        <div class="field">
+          <label for="nameFamilyInput">家庭池</label>
+          <input id="nameFamilyInput" type="text" maxlength="8" placeholder="家庭" />
         </div>
       </div>
       <div class="hint" id="balanceHint">一起成长，兑换属于你们的小惊喜～</div>
@@ -794,8 +896,9 @@
     <div class="person-picker" role="tablist" aria-label="当前记账对象">
       <button type="button" id="pickHusband" data-person="husband" class="active" role="tab" aria-selected="true">老公</button>
       <button type="button" id="pickWife" data-person="wife" role="tab" aria-selected="false">老婆</button>
+      <button type="button" id="pickFamily" data-person="family" role="tab" aria-selected="false">家庭</button>
     </div>
-    <p class="who-hint" id="whoHint">加分、扣分、兑换记在上方选中的人名下，点一下就能切换～</p>
+    <p class="who-hint" id="whoHint">加分、扣分、兑换记在上方选中对象名下，点一下切换～</p>
 
     <nav class="tabs" role="tablist" aria-label="功能分区">
       <button type="button" class="active" data-tab="good" role="tab" aria-selected="true">加分</button>
@@ -870,12 +973,25 @@
     </section>
 
     <section id="panel-history" class="panel" role="tabpanel" hidden>
-      <div class="section-title">最近记录</div>
-      <div class="card" id="historyCard">
-        <div id="historyList"></div>
-        <div class="toolbar" style="margin-top: 8px;">
-          <button type="button" class="btn btn-ghost btn-sm" id="clearHistory">清空记录（保留积分与模板）</button>
+      <div class="section-title">记录与汇总</div>
+      <div class="history-subtabs" role="tablist" aria-label="记录视图">
+        <button type="button" class="active" data-history-view="flow" role="tab" aria-selected="true">流水</button>
+        <button type="button" data-history-view="week" role="tab" aria-selected="false">本周</button>
+        <button type="button" data-history-view="month" role="tab" aria-selected="false">本月</button>
+      </div>
+      <div id="historyPaneFlow">
+        <div class="card" id="historyCard">
+          <div id="historyList"></div>
+          <div class="toolbar" style="margin-top: 8px;">
+            <button type="button" class="btn btn-ghost btn-sm" id="clearHistory">清空记录（保留积分与模板）</button>
+          </div>
         </div>
+      </div>
+      <div id="historyPaneWeek" hidden>
+        <div class="summary-card" id="summaryWeekCard"></div>
+      </div>
+      <div id="historyPaneMonth" hidden>
+        <div class="summary-card" id="summaryMonthCard"></div>
       </div>
       <div class="section-title" style="margin-top: 22px;">账号同步（推荐）</div>
       <div class="card" id="accountSyncCard">
@@ -986,8 +1102,10 @@
     const defaultState = () => ({
       nameHusband: "老公",
       nameWife: "老婆",
+      nameFamily: "家庭",
       balanceHusband: 0,
       balanceWife: 0,
+      balanceFamily: 0,
       activePerson: "husband",
       goodTemplates: [
         { id: uid(), name: "主动分担家务", points: 5 },
@@ -1008,6 +1126,12 @@
       return crypto.randomUUID?.() || String(Date.now()) + Math.random().toString(36).slice(2);
     }
 
+    function escapeHtml(s) {
+      const div = document.createElement("div");
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
     function loadState() {
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
@@ -1016,8 +1140,10 @@
         const def = defaultState();
         let balanceHusband = Number(data.balanceHusband);
         let balanceWife = Number(data.balanceWife);
+        let balanceFamily = Number(data.balanceFamily);
         if (!Number.isFinite(balanceHusband)) balanceHusband = 0;
         if (!Number.isFinite(balanceWife)) balanceWife = 0;
+        if (!Number.isFinite(balanceFamily)) balanceFamily = 0;
         if (
           data.balance != null &&
           data.balanceHusband == null &&
@@ -1027,7 +1153,9 @@
           balanceWife = 0;
         }
         const activePerson =
-          data.activePerson === "wife" || data.activePerson === "husband"
+          data.activePerson === "wife" ||
+          data.activePerson === "husband" ||
+          data.activePerson === "family"
             ? data.activePerson
             : "husband";
         return {
@@ -1039,8 +1167,13 @@
             typeof data.nameWife === "string" && data.nameWife.trim()
               ? data.nameWife.trim().slice(0, 8)
               : def.nameWife,
+          nameFamily:
+            typeof data.nameFamily === "string" && data.nameFamily.trim()
+              ? data.nameFamily.trim().slice(0, 8)
+              : def.nameFamily,
           balanceHusband,
           balanceWife,
+          balanceFamily,
           activePerson,
           goodTemplates: Array.isArray(data.goodTemplates) ? data.goodTemplates : def.goodTemplates,
           badTemplates: Array.isArray(data.badTemplates) ? data.badTemplates : def.badTemplates,
@@ -1485,8 +1618,10 @@
       return {
         nameHusband: state.nameHusband,
         nameWife: state.nameWife,
+        nameFamily: state.nameFamily,
         balanceHusband: state.balanceHusband,
         balanceWife: state.balanceWife,
+        balanceFamily: state.balanceFamily,
         activePerson: state.activePerson,
         goodTemplates: state.goodTemplates,
         badTemplates: state.badTemplates,
@@ -1865,7 +2000,9 @@
             const kind =
               h.kind === "good" || h.kind === "bad" || h.kind === "redeem" ? h.kind : "good";
             const person =
-              h.person === "wife" || h.person === "husband" ? h.person : "husband";
+              h.person === "wife" || h.person === "husband" || h.person === "family"
+                ? h.person
+                : "husband";
             const base = {
               id: h.id || uid(),
               at: typeof h.at === "string" ? h.at : new Date().toISOString(),
@@ -1881,8 +2018,10 @@
 
       let balanceHusband = Number(data.balanceHusband);
       let balanceWife = Number(data.balanceWife);
+      let balanceFamily = Number(data.balanceFamily);
       if (!Number.isFinite(balanceHusband)) balanceHusband = 0;
       if (!Number.isFinite(balanceWife)) balanceWife = 0;
+      if (!Number.isFinite(balanceFamily)) balanceFamily = 0;
       if (
         data.balance != null &&
         data.balanceHusband == null &&
@@ -1892,7 +2031,9 @@
         balanceWife = 0;
       }
       const activePerson =
-        data.activePerson === "wife" || data.activePerson === "husband"
+        data.activePerson === "wife" ||
+        data.activePerson === "husband" ||
+        data.activePerson === "family"
           ? data.activePerson
           : "husband";
 
@@ -1905,8 +2046,13 @@
           typeof data.nameWife === "string" && data.nameWife.trim()
             ? data.nameWife.trim().slice(0, 8)
             : def.nameWife,
+        nameFamily:
+          typeof data.nameFamily === "string" && data.nameFamily.trim()
+            ? data.nameFamily.trim().slice(0, 8)
+            : def.nameFamily,
         balanceHusband,
         balanceWife,
+        balanceFamily,
         activePerson,
         goodTemplates: mapGoodBad(data.goodTemplates, 5) ?? def.goodTemplates,
         badTemplates: mapGoodBad(data.badTemplates, 3) ?? def.badTemplates,
@@ -1918,10 +2064,14 @@
     const els = {
       balanceHusband: document.getElementById("balanceHusband"),
       balanceWife: document.getElementById("balanceWife"),
+      balanceFamily: document.getElementById("balanceFamily"),
       labelHusband: document.getElementById("labelHusband"),
       labelWife: document.getElementById("labelWife"),
+      labelFamily: document.getElementById("labelFamily"),
       nameHusbandInput: document.getElementById("nameHusbandInput"),
       nameWifeInput: document.getElementById("nameWifeInput"),
+      nameFamilyInput: document.getElementById("nameFamilyInput"),
+      pickFamily: document.getElementById("pickFamily"),
       pickHusband: document.getElementById("pickHusband"),
       pickWife: document.getElementById("pickWife"),
       whoHint: document.getElementById("whoHint"),
@@ -1992,36 +2142,142 @@
       if (e.target === els.confirmModal) closeConfirm(false);
     });
 
-    function formatTime(iso) {
+    function normalizePerson(p) {
+      return p === "wife" || p === "husband" || p === "family" ? p : "husband";
+    }
+
+    function formatHistoryDate(iso) {
       const d = new Date(iso);
       if (Number.isNaN(d.getTime())) return "";
       const now = new Date();
+      const w = ["日", "一", "二", "三", "四", "五", "六"][d.getDay()];
+      const t = d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
       const sameDay =
         d.getFullYear() === now.getFullYear() &&
         d.getMonth() === now.getMonth() &&
         d.getDate() === now.getDate();
-      const t = d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
-      if (sameDay) return `今天 ${t}`;
-      return d.toLocaleString("zh-CN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+      if (sameDay) return `今天 · 周${w} ${t}`;
+      const sameYear = d.getFullYear() === now.getFullYear();
+      if (sameYear) return `${d.getMonth() + 1}月${d.getDate()}日(周${w}) ${t}`;
+      return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日(周${w}) ${t}`;
     }
 
     function personLabel(person) {
-      return person === "wife" ? state.nameWife : state.nameHusband;
+      const p = normalizePerson(person);
+      if (p === "wife") return state.nameWife;
+      if (p === "family") return state.nameFamily;
+      return state.nameHusband;
     }
 
     function balanceOf(person) {
-      return person === "wife" ? state.balanceWife : state.balanceHusband;
+      const p = normalizePerson(person);
+      if (p === "wife") return state.balanceWife;
+      if (p === "family") return state.balanceFamily;
+      return state.balanceHusband;
     }
 
     function addBalance(person, delta) {
-      if (person === "wife") state.balanceWife += delta;
+      const p = normalizePerson(person);
+      if (p === "wife") state.balanceWife += delta;
+      else if (p === "family") state.balanceFamily += delta;
       else state.balanceHusband += delta;
     }
 
     function pushHistory(entry) {
-      const person = entry.person === "wife" || entry.person === "husband" ? entry.person : state.activePerson;
+      const person = normalizePerson(
+        entry.person !== undefined && entry.person !== null ? entry.person : state.activePerson
+      );
       state.history.unshift({ id: uid(), at: new Date().toISOString(), ...entry, person });
       if (state.history.length > 200) state.history.length = 200;
+    }
+
+    function historySignedDelta(h) {
+      if (h.kind === "good") return Number(h.points) || 0;
+      if (h.kind === "bad") return -(Number(h.points) || 0);
+      if (h.kind === "redeem") return -(Number(h.cost) || 0);
+      return 0;
+    }
+
+    function startOfWeekMondayLocal(d) {
+      const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const day = x.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      x.setDate(x.getDate() + diff);
+      return x;
+    }
+
+    function endOfWeekSundayLocal(startMon) {
+      return new Date(
+        startMon.getFullYear(),
+        startMon.getMonth(),
+        startMon.getDate() + 6,
+        23,
+        59,
+        59,
+        999
+      );
+    }
+
+    function aggregateHistoryRange(startMs, endMs) {
+      const out = { husband: 0, wife: 0, family: 0 };
+      for (const h of state.history) {
+        const t = new Date(h.at).getTime();
+        if (Number.isNaN(t) || t < startMs || t > endMs) continue;
+        const p = normalizePerson(h.person);
+        out[p] += historySignedDelta(h);
+      }
+      return out;
+    }
+
+    function formatNetClass(n) {
+      if (n > 0) return "pos";
+      if (n < 0) return "neg";
+      return "zero";
+    }
+
+    function formatSignedInt(n) {
+      if (n > 0) return `+${n}`;
+      return String(n);
+    }
+
+    function renderSummaryInto(el, rangeTitle, agg) {
+      const rows = [
+        { key: "husband", label: state.nameHusband },
+        { key: "wife", label: state.nameWife },
+        { key: "family", label: state.nameFamily },
+      ];
+      const parts = rows
+        .map(
+          ({ key, label }) => `
+        <div class="summary-row">
+          <span>${escapeHtml(label)}</span>
+          <span class="net ${formatNetClass(agg[key])}">${formatSignedInt(agg[key])}</span>
+        </div>`
+        )
+        .join("");
+      const emptyHint =
+        agg.husband === 0 && agg.wife === 0 && agg.family === 0
+          ? '<p class="help-text" style="margin:0 0 8px;">该时段暂无加分/扣分/兑换记录（净值均为 0）。</p>'
+          : "";
+      el.innerHTML = `<div class="summary-range">${escapeHtml(rangeTitle)}</div>${emptyHint}<div class="summary-rows">${parts}</div>
+        <p class="help-text" style="margin:12px 0 0;">净值 = 加分 − 扣分 − 兑换消耗，按流水时间归属到对应对象；周为周一至周日（手机/电脑本地时区）。</p>`;
+    }
+
+    function renderHistorySummaries() {
+      const now = new Date();
+      const wStart = startOfWeekMondayLocal(now);
+      const wEnd = endOfWeekSundayLocal(wStart);
+      const wMs0 = wStart.getTime();
+      const wMs1 = wEnd.getTime();
+      const weekAgg = aggregateHistoryRange(wMs0, wMs1);
+      const wLabel = `${wStart.getFullYear()}年 本周 ${wStart.getMonth() + 1}月${wStart.getDate()}日 – ${wEnd.getMonth() + 1}月${wEnd.getDate()}日（周一至周日）`;
+      renderSummaryInto(document.getElementById("summaryWeekCard"), wLabel, weekAgg);
+
+      const m0 = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      const m1 = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+      const monthAgg = aggregateHistoryRange(m0.getTime(), m1.getTime());
+      const mLabel = `${now.getFullYear()}年${now.getMonth() + 1}月 · 本月汇总`;
+      renderSummaryInto(document.getElementById("summaryMonthCard"), mLabel, monthAgg);
     }
 
     function hintForPerson(person) {
@@ -2038,30 +2294,39 @@
     function renderPersonUI() {
       els.labelHusband.textContent = state.nameHusband;
       els.labelWife.textContent = state.nameWife;
+      els.labelFamily.textContent = state.nameFamily;
       els.pickHusband.textContent = state.nameHusband;
       els.pickWife.textContent = state.nameWife;
+      els.pickFamily.textContent = state.nameFamily;
       els.pickHusband.classList.toggle("active", state.activePerson === "husband");
       els.pickWife.classList.toggle("active", state.activePerson === "wife");
+      els.pickFamily.classList.toggle("active", state.activePerson === "family");
       els.pickHusband.setAttribute("aria-selected", state.activePerson === "husband" ? "true" : "false");
       els.pickWife.setAttribute("aria-selected", state.activePerson === "wife" ? "true" : "false");
-      els.whoHint.textContent = `当前记在「${personLabel(state.activePerson)}」名下 · 点上面两个按钮切换～`;
+      els.pickFamily.setAttribute("aria-selected", state.activePerson === "family" ? "true" : "false");
+      els.whoHint.textContent = `当前记在「${personLabel(state.activePerson)}」名下 · 点上面切换～`;
       if (document.activeElement !== els.nameHusbandInput) {
         els.nameHusbandInput.value = state.nameHusband;
       }
       if (document.activeElement !== els.nameWifeInput) {
         els.nameWifeInput.value = state.nameWife;
       }
+      if (document.activeElement !== els.nameFamilyInput) {
+        els.nameFamilyInput.value = state.nameFamily;
+      }
     }
 
     function renderBalance() {
       els.balanceHusband.textContent = state.balanceHusband;
       els.balanceWife.textContent = state.balanceWife;
+      els.balanceFamily.textContent = state.balanceFamily;
       const h = hintForPerson("husband");
       const w = hintForPerson("wife");
+      const f = hintForPerson("family");
       if (!state.rewards.length) {
         els.balanceHint.textContent = "先一起加几条想吃想玩的小奖励吧～";
       } else {
-        els.balanceHint.textContent = `${h} · ${w}`;
+        els.balanceHint.textContent = `${h} · ${w} · ${f}`;
       }
     }
 
@@ -2131,12 +2396,6 @@
         .join("");
     }
 
-    function escapeHtml(s) {
-      const div = document.createElement("div");
-      div.textContent = s;
-      return div.innerHTML;
-    }
-
     function renderHistory() {
       if (!state.history.length) {
         els.historyList.innerHTML = '<div class="empty">暂无记录</div>';
@@ -2156,13 +2415,13 @@
             deltaClass = "redeem";
             deltaText = `−${h.cost}`;
           }
-          const p = h.person === "wife" || h.person === "husband" ? h.person : "husband";
+          const p = normalizePerson(h.person);
           const tag = escapeHtml(personLabel(p));
           return `
           <div class="history-item">
             <div>
               <div class="title-line"><span class="who-tag">${tag}</span>${escapeHtml(h.title)}</div>
-              <div class="meta">${formatTime(h.at)}</div>
+              <div class="meta">${formatHistoryDate(h.at)}</div>
             </div>
             <div class="delta ${deltaClass}">${deltaText}</div>
           </div>`;
@@ -2177,35 +2436,45 @@
       renderBadList();
       renderRewardList();
       renderHistory();
+      renderHistorySummaries();
       saveState();
       updateSyncUI();
     }
 
     function setActivePerson(person) {
-      state.activePerson = person === "wife" ? "wife" : "husband";
+      state.activePerson = normalizePerson(person);
       renderAll();
     }
 
     els.pickHusband.addEventListener("click", () => setActivePerson("husband"));
     els.pickWife.addEventListener("click", () => setActivePerson("wife"));
+    els.pickFamily.addEventListener("click", () => setActivePerson("family"));
 
     function syncNameFromInputs() {
       state.nameHusband = (els.nameHusbandInput.value || "老公").trim().slice(0, 8) || "老公";
       state.nameWife = (els.nameWifeInput.value || "老婆").trim().slice(0, 8) || "老婆";
+      state.nameFamily = (els.nameFamilyInput.value || "家庭").trim().slice(0, 8) || "家庭";
     }
 
     els.nameHusbandInput.addEventListener("input", () => {
       syncNameFromInputs();
       els.labelHusband.textContent = state.nameHusband;
       els.pickHusband.textContent = state.nameHusband;
-      els.whoHint.textContent = `当前记在「${personLabel(state.activePerson)}」名下 · 点上面两个按钮切换～`;
+      els.whoHint.textContent = `当前记在「${personLabel(state.activePerson)}」名下 · 点上面切换～`;
       saveState();
     });
     els.nameWifeInput.addEventListener("input", () => {
       syncNameFromInputs();
       els.labelWife.textContent = state.nameWife;
       els.pickWife.textContent = state.nameWife;
-      els.whoHint.textContent = `当前记在「${personLabel(state.activePerson)}」名下 · 点上面两个按钮切换～`;
+      els.whoHint.textContent = `当前记在「${personLabel(state.activePerson)}」名下 · 点上面切换～`;
+      saveState();
+    });
+    els.nameFamilyInput.addEventListener("input", () => {
+      syncNameFromInputs();
+      els.labelFamily.textContent = state.nameFamily;
+      els.pickFamily.textContent = state.nameFamily;
+      els.whoHint.textContent = `当前记在「${personLabel(state.activePerson)}」名下 · 点上面切换～`;
       saveState();
     });
 
@@ -2222,6 +2491,20 @@
           p.classList.toggle("active", on);
           p.hidden = !on;
         });
+      });
+    });
+
+    document.querySelectorAll("[data-history-view]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const view = btn.dataset.historyView;
+        document.querySelectorAll("[data-history-view]").forEach((b) => {
+          b.classList.toggle("active", b === btn);
+          b.setAttribute("aria-selected", b === btn ? "true" : "false");
+        });
+        document.getElementById("historyPaneFlow").hidden = view !== "flow";
+        document.getElementById("historyPaneWeek").hidden = view !== "week";
+        document.getElementById("historyPaneMonth").hidden = view !== "month";
+        if (view === "week" || view === "month") renderHistorySummaries();
       });
     });
 
@@ -2382,13 +2665,15 @@
 
     document.getElementById("exportData").addEventListener("click", () => {
       const payload = {
-        version: 1,
+        version: 2,
         exportedAt: new Date().toISOString(),
         data: {
           nameHusband: state.nameHusband,
           nameWife: state.nameWife,
+          nameFamily: state.nameFamily,
           balanceHusband: state.balanceHusband,
           balanceWife: state.balanceWife,
+          balanceFamily: state.balanceFamily,
           activePerson: state.activePerson,
           goodTemplates: state.goodTemplates,
           badTemplates: state.badTemplates,
