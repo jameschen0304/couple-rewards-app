@@ -1,5 +1,10 @@
-const CACHE = "couple-rewards-app-v6-green";
-const PRECACHE = ["./index.html", "./manifest.json", "./icon.svg"];
+const CACHE = "couple-rewards-app-v7-firebase-sync";
+const PRECACHE = [
+  "./index.html",
+  "./manifest.json",
+  "./icon.svg",
+  "./firebase-config.js",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

@@ -717,6 +717,22 @@
     .modal .actions .btn {
       flex: 1;
     }
+
+    .sync-code-box {
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      font-size: 0.8125rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      word-break: break-all;
+      padding: 12px 14px;
+      background: var(--surface2);
+      border-radius: var(--radius-xs);
+      border: 1px solid var(--border-soft);
+      margin-bottom: 10px;
+      user-select: all;
+      color: var(--text);
+      line-height: 1.45;
+    }
   </style>
 </head>
 <body>
@@ -839,9 +855,35 @@
           <button type="button" class="btn btn-ghost btn-sm" id="clearHistory">清空记录（保留积分与模板）</button>
         </div>
       </div>
+      <div class="section-title" style="margin-top: 22px;">云端同步</div>
+      <div class="card" id="syncCard">
+        <p class="help-text" id="syncHelp">在两台设备上使用同一同步码，即可实时同步账本（需联网）。</p>
+        <div id="syncActivePanel" hidden>
+          <div class="sync-code-box" id="syncCodeDisplay" aria-label="同步码"></div>
+          <div class="toolbar">
+            <button type="button" class="btn btn-ghost btn-sm" id="copySyncCode">复制同步码</button>
+            <button type="button" class="btn btn-bad btn-sm" id="disconnectSync">断开云同步</button>
+          </div>
+          <p class="help-text" id="syncStatus" style="margin-top: 10px; margin-bottom: 0;"></p>
+        </div>
+        <div id="syncInactivePanel">
+          <div class="toolbar" style="flex-direction: column; align-items: stretch;">
+            <button type="button" class="btn btn-good" id="createSyncRoom">生成同步码并上传当前数据</button>
+          </div>
+          <div class="row" style="margin-top: 12px;">
+            <div class="field" style="flex: 1;">
+              <label for="joinSyncInput">绑定已有同步码</label>
+              <input id="joinSyncInput" type="text" placeholder="粘贴对方发来的 24 位同步码" maxlength="64" autocomplete="off" spellcheck="false" />
+            </div>
+          </div>
+          <div class="toolbar">
+            <button type="button" class="btn btn-gold" id="joinSyncRoom">绑定并拉取云端数据</button>
+          </div>
+        </div>
+      </div>
       <div class="section-title" style="margin-top: 22px;">备份与恢复</div>
       <div class="card">
-        <p class="help-text">导出 JSON 后自行保存或发给对方；换手机时用「从文件恢复」载入。数据只在本机浏览器，不会上传服务器。</p>
+        <p class="help-text">导出 JSON 作离线备份；换机也可用「从文件恢复」。若已开启云端同步，日常以云端为准即可。</p>
         <div class="toolbar">
           <button type="button" class="btn btn-gold" id="exportData">导出备份</button>
           <button type="button" class="btn btn-ghost" id="triggerImport">从文件恢复</button>
@@ -853,6 +895,10 @@
       </div>
     </section>
   </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
 
   <div class="toast" id="toast" role="status"></div>
 
@@ -869,6 +915,29 @@
 
   <script>
     const STORAGE_KEY = "coupleRewardsApp.v1";
+    const SYNC_ID_KEY = "coupleRewardsApp.syncId";
+
+    function getSyncId() {
+      return localStorage.getItem(SYNC_ID_KEY) || "";
+    }
+
+    function setSyncId(id) {
+      if (id) localStorage.setItem(SYNC_ID_KEY, id);
+      else localStorage.removeItem(SYNC_ID_KEY);
+    }
+
+    function generateSyncId() {
+      const a = new Uint8Array(12);
+      crypto.getRandomValues(a);
+      return Array.from(a, (b) => b.toString(16).padStart(2, "0")).join("");
+    }
+
+    function normalizeSyncIdInput(s) {
+      return String(s || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-f0-9]/g, "");
+    }
 
     const defaultState = () => ({
       nameHusband: "老公",
@@ -941,8 +1010,145 @@
 
     let state = loadState();
 
-    function saveState() {
+    let cloudUnsub = null;
+    let cloudPushTimer = null;
+
+    function firebaseConfigured() {
+      const c = window.COUPLE_REWARDS_FIREBASE;
+      return Boolean(c && c.apiKey && c.projectId);
+    }
+
+    function firebaseReady() {
+      return typeof firebase !== "undefined" && firebase.apps && firebase.apps.length > 0;
+    }
+
+    function initFirestoreIfNeeded() {
+      if (!firebaseConfigured()) return false;
+      if (typeof firebase === "undefined") return false;
+      if (firebase.apps && firebase.apps.length > 0) return true;
+      try {
+        firebase.initializeApp(window.COUPLE_REWARDS_FIREBASE);
+        firebase.firestore().enablePersistence({ synchronizeTabs: true }).catch(() => {});
+        return true;
+      } catch (e) {
+        console.error(e);
+        toast("Firebase 初始化失败，请检查 firebase-config.js");
+        return false;
+      }
+    }
+
+    function getSyncPayload() {
+      return {
+        nameHusband: state.nameHusband,
+        nameWife: state.nameWife,
+        balanceHusband: state.balanceHusband,
+        balanceWife: state.balanceWife,
+        activePerson: state.activePerson,
+        goodTemplates: state.goodTemplates,
+        badTemplates: state.badTemplates,
+        rewards: state.rewards,
+        history: state.history,
+      };
+    }
+
+    function scheduleCloudPush() {
+      if (!getSyncId() || !firebaseReady()) return;
+      clearTimeout(cloudPushTimer);
+      cloudPushTimer = setTimeout(async () => {
+        const id = getSyncId();
+        if (!id) return;
+        try {
+          const db = firebase.firestore();
+          await db.collection("ledgers").doc(id).set(
+            {
+              data: getSyncPayload(),
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        } catch (e) {
+          console.error(e);
+          toast("云端保存失败，请检查网络");
+        }
+      }, 500);
+    }
+
+    function detachCloudListener() {
+      if (typeof cloudUnsub === "function") {
+        cloudUnsub();
+        cloudUnsub = null;
+      }
+    }
+
+    function attachCloudListener(syncId) {
+      detachCloudListener();
+      if (!syncId || !firebaseReady()) return;
+      const db = firebase.firestore();
+      cloudUnsub = db.collection("ledgers").doc(syncId).onSnapshot(
+        (snap) => {
+          if (!snap.exists) return;
+          if (snap.metadata.hasPendingWrites) return;
+          const d = snap.data();
+          if (!d || !d.data) return;
+          const next = normalizeImportedPayload(d.data);
+          if (!next) return;
+          Object.assign(state, next);
+          renderPersonUI();
+          renderBalance();
+          renderGoodList();
+          renderBadList();
+          renderRewardList();
+          renderHistory();
+          saveState({ skipCloud: true });
+          updateSyncUI();
+        },
+        (err) => {
+          console.error(err);
+        }
+      );
+    }
+
+    function updateSyncUI() {
+      const elAct = document.getElementById("syncActivePanel");
+      const elInact = document.getElementById("syncInactivePanel");
+      const elHelp = document.getElementById("syncHelp");
+      const elCode = document.getElementById("syncCodeDisplay");
+      const elStat = document.getElementById("syncStatus");
+      const btnCreate = document.getElementById("createSyncRoom");
+      const btnJoin = document.getElementById("joinSyncRoom");
+      if (!elAct || !elHelp) return;
+
+      if (!firebaseConfigured()) {
+        elHelp.textContent =
+          "云端同步需先在仓库里填写 firebase-config.js 并部署（步骤见 SYNC_SETUP.md）。未配置前无法使用同步。";
+        elAct.hidden = true;
+        elInact.hidden = false;
+        if (btnCreate) btnCreate.disabled = true;
+        if (btnJoin) btnJoin.disabled = true;
+        return;
+      }
+      if (btnCreate) btnCreate.disabled = false;
+      if (btnJoin) btnJoin.disabled = false;
+
+      if (getSyncId()) {
+        elHelp.textContent =
+          "两台设备使用同一同步码即可实时同步。请勿把同步码发给陌生人。";
+        elAct.hidden = false;
+        elInact.hidden = true;
+        if (elCode) elCode.textContent = getSyncId();
+        if (elStat) elStat.textContent = firebaseReady() ? "已连接云端，修改会自动同步。" : "正在连接云端…";
+      } else {
+        elHelp.textContent =
+          "由一人点「生成同步码」，把码发给对方，对方在本页粘贴后点「绑定」即可共用一份数据。";
+        elAct.hidden = true;
+        elInact.hidden = false;
+      }
+    }
+
+    function saveState(options) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      const skipCloud = options && options.skipCloud;
+      if (!skipCloud && getSyncId() && firebaseReady()) scheduleCloudPush();
     }
 
     function normalizeImportedPayload(raw) {
@@ -1275,6 +1481,7 @@
       renderRewardList();
       renderHistory();
       saveState();
+      updateSyncUI();
     }
 
     function setActivePerson(person) {
@@ -1537,6 +1744,99 @@
       toast("已恢复初始状态");
       renderAll();
     });
+
+    document.getElementById("createSyncRoom").addEventListener("click", async () => {
+      if (!firebaseConfigured()) {
+        toast("请先按 SYNC_SETUP.md 配置 firebase-config.js");
+        return;
+      }
+      if (!initFirestoreIfNeeded()) return;
+      const id = generateSyncId();
+      setSyncId(id);
+      attachCloudListener(id);
+      try {
+        await firebase.firestore().collection("ledgers").doc(id).set({
+          data: getSyncPayload(),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+        updateSyncUI();
+        renderAll();
+        toast("已生成同步码，请发给对方绑定");
+      } catch (e) {
+        console.error(e);
+        setSyncId("");
+        detachCloudListener();
+        toast("上传失败，请检查网络与 Firestore 规则");
+      }
+    });
+
+    document.getElementById("joinSyncRoom").addEventListener("click", async () => {
+      if (!firebaseConfigured()) {
+        toast("请先配置 firebase-config.js");
+        return;
+      }
+      const id = normalizeSyncIdInput(document.getElementById("joinSyncInput").value);
+      if (id.length !== 24) {
+        toast("同步码应为 24 位（仅数字与小写字母 a-f），请完整粘贴");
+        return;
+      }
+      if (!initFirestoreIfNeeded()) return;
+      try {
+        const ref = firebase.firestore().collection("ledgers").doc(id);
+        const snap = await ref.get();
+        if (!snap.exists) {
+          toast("云端暂无此码，请让对方先生成同步码");
+          return;
+        }
+        const d = snap.data();
+        if (!d || !d.data) {
+          toast("云端数据异常");
+          return;
+        }
+        const ok = await confirm("将用云端数据覆盖本机当前账本，确定吗？");
+        if (!ok) return;
+        const next = normalizeImportedPayload(d.data);
+        if (!next) {
+          toast("云端数据无法解析");
+          return;
+        }
+        Object.assign(state, next);
+        setSyncId(id);
+        attachCloudListener(id);
+        renderAll();
+        toast("已绑定，与云端同步中");
+      } catch (e) {
+        console.error(e);
+        toast("拉取失败，请检查网络");
+      }
+    });
+
+    document.getElementById("disconnectSync").addEventListener("click", async () => {
+      const ok = await confirm("断开后本机不再自动同步，云端数据仍保留。确定？");
+      if (!ok) return;
+      detachCloudListener();
+      setSyncId("");
+      updateSyncUI();
+      toast("已断开云同步");
+    });
+
+    document.getElementById("copySyncCode").addEventListener("click", async () => {
+      const id = getSyncId();
+      if (!id) return;
+      try {
+        await navigator.clipboard.writeText(id);
+        toast("已复制同步码");
+      } catch {
+        toast("复制失败，请长按同步码手动复制");
+      }
+    });
+
+    if (getSyncId()) {
+      if (initFirestoreIfNeeded()) {
+        attachCloudListener(getSyncId());
+      }
+    }
+    updateSyncUI();
 
     if ("serviceWorker" in navigator) {
       const { protocol, hostname } = location;
