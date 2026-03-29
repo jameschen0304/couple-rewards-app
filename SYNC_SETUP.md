@@ -164,3 +164,5 @@ Firestore 规则仍建议与第 2 节一致；代理使用 Admin SDK **绕过规
 2. **Variables** 中添加 **`PORT`** = **`8080`**（与下面 Networking 一致）。  
 3. **Settings → Networking** 里对外端口填 **`8080`**，保存后 **Redeploy**。  
 4. 若曾用旧镜像构建失败：本仓库已改为 **Debian slim** 基础镜像（避免 Alpine 与 Firebase Admin 不兼容），请 **push 最新代码** 并触发重新部署。
+
+5. **免费套餐休眠 / 冷启动**：若网页提示「同步代理无响应或冷启动」，多为容器刚被唤醒。可在 Railway **关闭 Serverless（缩容到零）** 让服务常开；或用 [UptimeRobot](https://uptimerobot.com/) 等每 5 分钟请求一次 `https://你的域名/health` 保持温热。网页端已会在「生成 / 绑定」前自动多次请求 `/health` 尝试唤醒。

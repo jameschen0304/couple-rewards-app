@@ -1076,7 +1076,12 @@
           return "拉取超时（手机网络慢或代理冷启动）：请换 WiFi/流量，等 30 秒后重试";
         }
         if (e.status >= 500) {
-          return "同步代理无响应或正在冷启动：请稍等后重试；勿用微信内置页，尽量用 Safari/Chrome";
+          const h = getProxyBase() || "你的代理域名";
+          return (
+            "同步代理在唤醒中或无响应（Railway 休眠后常见）。请先用浏览器打开 " +
+            h +
+            "/health 等到出现 ok 再回本页重试；或在 Railway 关闭「缩容到零/Serverless」。勿用微信内置页。"
+          );
         }
         if (e.status === 400) return "请求无效：" + String(e.message || "").slice(0, 52);
       }
@@ -1115,6 +1120,28 @@
 
     function sleep(ms) {
       return new Promise((r) => setTimeout(r, ms));
+    }
+
+    async function ensureProxyAwake() {
+      const base = getProxyBase();
+      if (!base) return false;
+      const delays = [0, 3500, 7000, 11000, 15000];
+      for (let i = 0; i < delays.length; i++) {
+        if (delays[i]) await sleep(delays[i]);
+        try {
+          const ctrl = new AbortController();
+          const tm = setTimeout(() => ctrl.abort(), 22000);
+          const r = await fetch(base + "/health", {
+            method: "GET",
+            cache: "no-store",
+            signal: ctrl.signal,
+            headers: { Accept: "application/json" },
+          });
+          clearTimeout(tm);
+          if (r.ok) return true;
+        } catch (_) {}
+      }
+      return false;
     }
 
     async function ledgerSetWithRetry(docRef, data, setOptions) {
@@ -1215,16 +1242,20 @@
     }
 
     async function proxyLedgerSetWithRetry(id, appData, merge) {
-      const waits = [0, 700, 1800, 3200];
+      const waits = [0, 2500, 6000, 11000, 17000];
       let lastErr;
       for (let i = 0; i < waits.length; i++) {
         if (waits[i]) await sleep(waits[i]);
         try {
           const q = merge ? "?merge=1" : "";
-          await proxyFetchJson(`/v1/ledger/${id}${q}`, {
-            method: "PUT",
-            body: JSON.stringify({ data: appData, merge: Boolean(merge) }),
-          });
+          await proxyFetchJson(
+            `/v1/ledger/${id}${q}`,
+            {
+              method: "PUT",
+              body: JSON.stringify({ data: appData, merge: Boolean(merge) }),
+            },
+            72000
+          );
           return;
         } catch (e) {
           lastErr = e;
@@ -2119,13 +2150,16 @@
         busy = true;
         btn.disabled = true;
         btn.textContent = "上传中…";
-        toast("正在上传账本到云端，请稍候", 8000);
         const id = generateSyncId();
         setSyncId(id);
         attachCloudListener(id);
         if (useProxySync()) {
+          toast("正在唤醒同步服务（休眠后可能要近 1 分钟）…", 120000);
+          await ensureProxyAwake();
+          toast("正在上传账本到云端…", 90000);
           await proxyLedgerSetWithRetry(id, getSyncPayload(), false);
         } else {
+          toast("正在上传账本到云端，请稍候", 8000);
           await ledgerSetWithRetry(
             firebase.firestore().collection("ledgers").doc(id),
             {
@@ -2177,12 +2211,15 @@
       const joinLabel = btnJ.textContent;
       btnJ.disabled = true;
       btnJ.textContent = "拉取中…";
-      toast("正在从云端拉取，网络慢时可能要一分钟左右", 9000);
       try {
         let result;
         if (useProxySync()) {
+          toast("正在唤醒同步服务（休眠后可能要近 1 分钟）…", 120000);
+          await ensureProxyAwake();
+          toast("正在从云端拉取数据…", 90000);
           result = await proxyLedgerGetWithRetry(id);
         } else {
+          toast("正在从云端拉取，网络慢时可能要一分钟左右", 9000);
           const ref = firebase.firestore().collection("ledgers").doc(id);
           const snap = await ledgerGetWithRetry(ref);
           result = {
