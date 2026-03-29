@@ -635,9 +635,8 @@
       left: 50%;
       bottom: max(24px, env(safe-area-inset-bottom));
       transform: translateX(-50%) translateY(100px);
-      background: rgba(255, 255, 255, 0.92);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
+      -webkit-transform: translateX(-50%) translateY(100px);
+      background: rgba(255, 255, 255, 0.98);
       color: var(--text);
       padding: 14px 24px;
       border-radius: 999px;
@@ -646,7 +645,7 @@
       font-weight: 600;
       opacity: 0;
       pointer-events: none;
-      z-index: 250;
+      z-index: 8000;
       transition: transform 0.4s var(--ease), opacity 0.3s var(--ease);
       max-width: min(90vw, 360px);
       text-align: center;
@@ -655,6 +654,7 @@
 
     .toast.show {
       transform: translateX(-50%) translateY(0);
+      -webkit-transform: translateX(-50%) translateY(0);
       opacity: 1;
     }
 
@@ -664,7 +664,7 @@
       background: rgba(30, 70, 55, 0.38);
       backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
-      z-index: 400;
+      z-index: 9000;
       display: flex;
       align-items: flex-end;
       justify-content: center;
@@ -909,7 +909,7 @@
     </section>
   </div>
 
-  <div class="toast" id="toast" role="status"></div>
+  <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <div class="modal-overlay" id="confirmModal" aria-hidden="true">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
@@ -1597,17 +1597,28 @@
     };
 
     function toast(msg, durationMs) {
-      els.toast.textContent = msg;
-      els.toast.classList.add("show");
+      const el = document.getElementById("toast");
+      if (!el) {
+        console.warn("[toast]", msg);
+        try {
+          alert(msg);
+        } catch (_) {}
+        return;
+      }
+      el.textContent = msg;
+      el.classList.add("show");
+      void el.offsetWidth;
       clearTimeout(toast._t);
       const ms = durationMs != null ? durationMs : 2200;
       if (ms > 0) {
-        toast._t = setTimeout(() => els.toast.classList.remove("show"), ms);
+        toast._t = setTimeout(() => el.classList.remove("show"), ms);
       }
     }
 
     function hideToast() {
-      els.toast.classList.remove("show");
+      const el = document.getElementById("toast");
+      if (!el) return;
+      el.classList.remove("show");
       clearTimeout(toast._t);
     }
 
@@ -2086,29 +2097,32 @@
 
     document.getElementById("createSyncRoom").addEventListener("click", async () => {
       const btn = document.getElementById("createSyncRoom");
-      if (!syncConfigured()) {
-        toast("请配置 Firebase 直连，或填写 COUPLE_REWARDS_API_PROXY 走代理（见 SYNC_SETUP.md）");
-        return;
-      }
-      if (!useProxySync()) {
-        if (typeof firebase === "undefined" || window.__firebaseLoadError) {
-          toast("Firebase 未加载，请用系统浏览器打开本页或换网络（微信内常失败）");
+      if (!btn) return;
+      const createLabel = btn.textContent;
+      let busy = false;
+      try {
+        if (!syncConfigured()) {
+          toast("请配置 Firebase 直连，或填写 COUPLE_REWARDS_API_PROXY 走代理（见 SYNC_SETUP.md）", 4000);
           return;
         }
-      }
-      if (window.__firebaseConfigError) {
-        toast("配置脚本未加载，请下拉刷新页面");
-        return;
-      }
-      if (!initSyncIfNeeded()) return;
-      const createLabel = btn.textContent;
-      btn.disabled = true;
-      btn.textContent = "上传中…";
-      toast("正在上传账本到云端，请稍候", 6000);
-      const id = generateSyncId();
-      setSyncId(id);
-      attachCloudListener(id);
-      try {
+        if (!useProxySync()) {
+          if (typeof firebase === "undefined" || window.__firebaseLoadError) {
+            toast("Firebase 未加载，请用系统浏览器打开本页或换网络（微信内常失败）", 4000);
+            return;
+          }
+        }
+        if (window.__firebaseConfigError) {
+          toast("配置脚本未加载，请下拉刷新页面", 4000);
+          return;
+        }
+        if (!initSyncIfNeeded()) return;
+        busy = true;
+        btn.disabled = true;
+        btn.textContent = "上传中…";
+        toast("正在上传账本到云端，请稍候", 8000);
+        const id = generateSyncId();
+        setSyncId(id);
+        attachCloudListener(id);
         if (useProxySync()) {
           await proxyLedgerSetWithRetry(id, getSyncPayload(), false);
         } else {
@@ -2129,10 +2143,16 @@
         setSyncId("");
         detachCloudListener();
         hideToast();
-        toast(anyCloudErrorMsg(e, "上传失败，请检查网络与 Firestore 规则"), 5500);
+        const errLine = anyCloudErrorMsg(e, "上传失败，请检查网络与 Firestore 规则");
+        toast(errLine, 8000);
+        try {
+          alert(errLine);
+        } catch (_) {}
       } finally {
-        btn.disabled = false;
-        btn.textContent = createLabel;
+        if (busy) {
+          btn.disabled = false;
+          btn.textContent = createLabel;
+        }
       }
     });
 
