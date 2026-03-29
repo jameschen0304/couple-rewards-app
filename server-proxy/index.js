@@ -5,6 +5,7 @@ import { readFileSync } from "fs";
 
 const PORT = Number(process.env.PORT) || 8080;
 const HOST = process.env.HOST || "0.0.0.0";
+console.log("[couple-rewards-proxy] boot", { PORT: process.env.PORT, listen: PORT, HOST });
 
 function createDb() {
   const json = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;

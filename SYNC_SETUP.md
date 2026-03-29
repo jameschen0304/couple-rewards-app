@@ -155,3 +155,12 @@ Firestore 规则仍建议与第 2 节一致；代理使用 Admin SDK **绕过规
 
 - **`FIREBASE_SERVICE_ACCOUNT_JSON` 拥有项目管理员级写权限**，只放在托管平台「环境变量」里，不要写进代码仓库、不要发聊天截图。  
 - 设置 **`PROXY_SHARED_SECRET`** 后，未带密钥的请求会被代理拒绝，可降低被扫接口的风险。
+
+#### Railway 出现「Application failed to respond」
+
+多为**容器内进程没起来**或**端口不一致**。请依次检查：
+
+1. **Deployments → Logs** 是否有一行 **`couple-rewards sync proxy listening on http://0.0.0.0:8080`**（端口以日志为准）。  
+2. **Variables** 中添加 **`PORT`** = **`8080`**（与下面 Networking 一致）。  
+3. **Settings → Networking** 里对外端口填 **`8080`**，保存后 **Redeploy**。  
+4. 若曾用旧镜像构建失败：本仓库已改为 **Debian slim** 基础镜像（避免 Alpine 与 Firebase Admin 不兼容），请 **push 最新代码** 并触发重新部署。
