@@ -1113,6 +1113,15 @@
     }
 
     function anyCloudErrorMsg(e, fallback) {
+      const msgAll = String((e && e.message) || "");
+      if (
+        /firestore\.googleapis\.com/i.test(msgAll) &&
+        /PERMISSION_DENIED|not been used|is disabled/i.test(msgAll)
+      ) {
+        return (
+          "Google Cloud 尚未启用「Cloud Firestore API」。请打开：console.cloud.google.com → 选中你的 Firebase 项目 →「API 和服务」→「启用 API」→ 搜索「Cloud Firestore API」并启用；也可直接访问控制台报错里的 google.com/apis/... 链接。启用后等待 2～5 分钟再在代理上重试。"
+        );
+      }
       if (e && typeof e.status === "number") {
         if (e.status === 401) {
           return getAccountUser()
