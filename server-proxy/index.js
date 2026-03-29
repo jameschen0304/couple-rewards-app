@@ -57,7 +57,15 @@ app.use(cors({ origin: true }));
 app.use(express.json({ limit: "2mb" }));
 
 app.get("/health", (_, res) => {
-  res.json({ ok: true, firestore: Boolean(db) });
+  if (!db) {
+    return res.status(503).json({
+      ok: false,
+      firestore: false,
+      error:
+        "Firestore not configured: set valid FIREBASE_SERVICE_ACCOUNT_JSON in Railway Variables (full service account JSON)",
+    });
+  }
+  res.json({ ok: true, firestore: true });
 });
 
 async function verifyIdTokenFromRequest(req, res) {

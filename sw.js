@@ -1,4 +1,4 @@
-const CACHE = "couple-rewards-app-v18-proxy-wake";
+const CACHE = "couple-rewards-app-v19-health-firestore";
 const PRECACHE = [
   "./index.html",
   "./manifest.json",

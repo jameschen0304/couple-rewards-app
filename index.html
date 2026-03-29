@@ -1135,9 +1135,9 @@
         if (e.status >= 500) {
           const h = getProxyBase() || "你的代理域名";
           return (
-            "同步代理在唤醒中或无响应（Railway 休眠后常见）。请先用浏览器打开 " +
+            "同步请求失败（5xx）。若 " +
             h +
-            "/health 等到出现 ok 再回本页重试；或在 Railway 关闭「缩容到零/Serverless」。勿用微信内置页。"
+            "/health 已是 200 且含 firestore:true：请检查 COUPLE_REWARDS_PROXY_SECRET 与 Railway 是否一致（同步码）；账号同步请换 Safari/Chrome 重登。若 health 为 503 或 firestore:false，请修正 Railway 的 FIREBASE_SERVICE_ACCOUNT_JSON。仍常见则为 Railway 冷启动，关闭缩容到零或稍后再试。勿用微信内置页。"
           );
         }
         if (e.status === 400) return "请求无效：" + String(e.message || "").slice(0, 52);
@@ -1196,7 +1196,12 @@
             headers: { Accept: "application/json" },
           });
           clearTimeout(tm);
-          if (r.ok) return true;
+          const text = await r.text();
+          let j = null;
+          try {
+            j = text ? JSON.parse(text) : null;
+          } catch (_) {}
+          if (r.ok && j && j.firestore === true && j.ok === true) return true;
         } catch (_) {}
       }
       return false;
@@ -1207,10 +1212,10 @@
       if (!ok) {
         const b = getProxyBase();
         toast(
-          "代理仍在冷启动或网络不通。请新开标签打开 " +
+          "代理未就绪。请新开标签打开 " +
             b +
-            "/health ，等到 JSON 里出现 ok:true 再回到本页重试。若在 Railway 部署，可在项目里关闭「缩容到零 / Serverless」避免休眠。",
-          14000
+            "/health ：须为 HTTP 200 且 JSON 含 ok:true 与 firestore:true。若见 firestore:false 或 503，请在 Railway 检查 FIREBASE_SERVICE_ACCOUNT_JSON。冷启动请多等一会或关闭缩容到零。",
+          16000
         );
       }
       return ok;
