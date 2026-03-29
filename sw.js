@@ -1,4 +1,4 @@
-const CACHE = "couple-rewards-app-v7-firebase-sync";
+const CACHE = "couple-rewards-app-v8-wechat-longpoll";
 const PRECACHE = [
   "./index.html",
   "./manifest.json",

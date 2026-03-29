@@ -857,7 +857,7 @@
       </div>
       <div class="section-title" style="margin-top: 22px;">云端同步</div>
       <div class="card" id="syncCard">
-        <p class="help-text" id="syncHelp">在两台设备上使用同一同步码，即可实时同步账本（需联网）。</p>
+        <p class="help-text" id="syncHelp">在两台设备上使用同一同步码即可实时同步（需联网）。若在微信里失败，请点右上角「在浏览器打开」用 Safari/Chrome 再试。</p>
         <div id="syncActivePanel" hidden>
           <div class="sync-code-box" id="syncCodeDisplay" aria-label="同步码"></div>
           <div class="toolbar">
@@ -1022,13 +1022,34 @@
       return typeof firebase !== "undefined" && firebase.apps && firebase.apps.length > 0;
     }
 
+    function firestoreErrorMsg(e, fallback) {
+      if (!e) return fallback || "请检查网络";
+      const code = e.code || "";
+      if (code === "permission-denied") {
+        return "无权限：请在 Firebase 控制台发布 Firestore 规则（见 SYNC_SETUP.md）";
+      }
+      if (code === "unavailable" || code === "deadline-exceeded") {
+        return "连不上云端。微信内或大陆网络常不稳定：请用系统浏览器打开网页，或换 WiFi/流量再试";
+      }
+      const msg = String(e.message || "");
+      if (/network|fetch|Failed to fetch|NETWORK_ERROR/i.test(msg)) {
+        return "网络被拦截或超时：不要用微信内置页面试试 Safari/Chrome 打开同一链接";
+      }
+      return fallback || msg.slice(0, 72) || "请检查网络";
+    }
+
     function initFirestoreIfNeeded() {
       if (!firebaseConfigured()) return false;
       if (typeof firebase === "undefined") return false;
       if (firebase.apps && firebase.apps.length > 0) return true;
       try {
         firebase.initializeApp(window.COUPLE_REWARDS_FIREBASE);
-        firebase.firestore().enablePersistence({ synchronizeTabs: true }).catch(() => {});
+        const db = firebase.firestore();
+        /* 微信内置浏览器等环境 WebSocket 常被拦，强制长轮询可提高连通率 */
+        try {
+          db.settings({ experimentalForceLongPolling: true });
+        } catch (_) {}
+        db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
         return true;
       } catch (e) {
         console.error(e);
@@ -1068,7 +1089,7 @@
           );
         } catch (e) {
           console.error(e);
-          toast("云端保存失败，请检查网络");
+          toast(firestoreErrorMsg(e, "云端保存失败，请检查网络"));
         }
       }, 500);
     }
@@ -1132,7 +1153,7 @@
 
       if (getSyncId()) {
         elHelp.textContent =
-          "两台设备使用同一同步码即可实时同步。请勿把同步码发给陌生人。";
+          "两台设备使用同一同步码即可实时同步。微信内若拉取失败，请用系统浏览器打开同一网址再绑定。请勿把同步码发给陌生人。";
         elAct.hidden = false;
         elInact.hidden = true;
         if (elCode) elCode.textContent = getSyncId();
@@ -1766,7 +1787,7 @@
         console.error(e);
         setSyncId("");
         detachCloudListener();
-        toast("上传失败，请检查网络与 Firestore 规则");
+        toast(firestoreErrorMsg(e, "上传失败，请检查网络与 Firestore 规则"));
       }
     });
 
@@ -1807,7 +1828,7 @@
         toast("已绑定，与云端同步中");
       } catch (e) {
         console.error(e);
-        toast("拉取失败，请检查网络");
+        toast(firestoreErrorMsg(e, "拉取失败，请检查网络"));
       }
     });
 
