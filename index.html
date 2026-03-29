@@ -2120,16 +2120,17 @@
             }
           );
         }
+        hideToast();
         updateSyncUI();
         renderAll();
-        toast("已生成同步码，请发给对方绑定");
+        toast("已生成同步码，请发给对方绑定", 4500);
       } catch (e) {
         console.error(e);
         setSyncId("");
         detachCloudListener();
-        toast(anyCloudErrorMsg(e, "上传失败，请检查网络与 Firestore 规则"));
-      } finally {
         hideToast();
+        toast(anyCloudErrorMsg(e, "上传失败，请检查网络与 Firestore 规则"), 5500);
+      } finally {
         btn.disabled = false;
         btn.textContent = createLabel;
       }
@@ -2170,31 +2171,34 @@
           };
         }
         if (!result.exists) {
-          toast("云端暂无此码，请让对方先生成同步码");
+          hideToast();
+          toast("云端暂无此码，请让对方先生成同步码", 4000);
           return;
         }
         const d = result.doc;
         if (!d || !d.data) {
-          toast("云端数据异常");
+          hideToast();
+          toast("云端数据异常", 4000);
           return;
         }
+        hideToast();
         const ok = await confirm("将用云端数据覆盖本机当前账本，确定吗？");
         if (!ok) return;
         const next = normalizeImportedPayload(d.data);
         if (!next) {
-          toast("云端数据无法解析");
+          toast("云端数据无法解析", 4000);
           return;
         }
         Object.assign(state, next);
         setSyncId(id);
         attachCloudListener(id);
         renderAll();
-        toast("已绑定，与云端同步中");
+        toast("已绑定，与云端同步中", 4000);
       } catch (e) {
         console.error(e);
-        toast(anyCloudErrorMsg(e, "拉取失败，请检查网络"), 4500);
-      } finally {
         hideToast();
+        toast(anyCloudErrorMsg(e, "拉取失败，请检查网络"), 5500);
+      } finally {
         btnJ.disabled = false;
         btnJ.textContent = joinLabel;
       }

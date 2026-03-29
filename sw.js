@@ -1,4 +1,4 @@
-const CACHE = "couple-rewards-app-v13-join-loading-ui";
+const CACHE = "couple-rewards-app-v14-toast-finally-fix";
 const PRECACHE = [
   "./index.html",
   "./manifest.json",
