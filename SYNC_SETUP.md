@@ -11,7 +11,7 @@
 
 ## 2. Firestore 安全规则
 
-**Firestore** → **规则**，粘贴为（仅允许 24 位小写十六进制的文档 ID，与 App 生成的同步码一致）：
+**Firestore** → **规则**，粘贴为（`ledgers` 仍按同步码；`users` 仅本人可读写，供「账号同步」）：
 
 ```
 rules_version = '2';
@@ -20,12 +20,25 @@ service cloud.firestore {
     match /ledgers/{docId} {
       allow read, write: if docId.matches('^[a-f0-9]{24}$');
     }
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
   }
 }
 ```
 
 点击 **发布**。  
-说明：同步码足够长且随机时，他人难以猜到；若需更高安全，可再接入 Firebase Authentication。
+说明：同步码足够长且随机时，他人难以猜到；「账号同步」需同时启用 **Authentication**（见下节）并发布上述 `users` 规则。
+
+## 2b. 账号同步（推荐：两人共用一个邮箱账号）
+
+在 **Firebase 控制台** → **构建** → **Authentication** → **登录方法** 中启用 **电子邮件/密码**。  
+网页 **记录** 区块中的 **账号同步** 会：
+
+- **直连 Firestore**：用当前登录用户的 UID 读写 `users/{uid}`（受上面规则保护）。  
+- **走自建代理**：浏览器仍从 `gstatic` 加载 **Firebase Auth**（仅登录拿 ID Token），账本数据经代理 **`/v1/me`** 与 SSE **`/v1/me/stream`** 同步（代理用 Admin SDK，**不**校验 `PROXY_SHARED_SECRET`，只校验 Bearer Token）。
+
+部署代理后请 **重新部署** 含最新 `server-proxy` 的代码，否则没有 `/v1/me` 接口。
 
 ## 3. 注册 Web 应用并填写配置
 
@@ -62,7 +75,7 @@ service cloud.firestore {
 
 ### 架构
 
-- 网页：在 **`firebase-config.js`** 里填写 `window.COUPLE_REWARDS_API_PROXY = "https://你的域名"`（无尾斜杠）。填写后页面 **不再加载** `gstatic` 上的 Firebase JS，微信内也可打开同步页。  
+- 网页：在 **`firebase-config.js`** 里填写 `window.COUPLE_REWARDS_API_PROXY = "https://你的域名"`（无尾斜杠）。填写后页面 **仍会加载** `gstatic` 上的 **Firebase App + Auth**（用于登录与 ID Token），**不加载**客户端 Firestore；同步码与账号数据均由代理用 Admin SDK 读写 Firestore。  
 - 代理：本仓库目录 **`server-proxy/`**，Node 18+，需能访问 Google（**阿里云/腾讯云香港**、AWS `ap-east-1`、Railway/Fly.io 等区域通常可行；**大陆机房直连 Google 常失败**，勿把代理只部署在大陆若无出境线路）。
 
 ### 部署步骤（概要）
@@ -84,8 +97,12 @@ service cloud.firestore {
 | GET | `/v1/ledger/:id` | 读取文档（24 位 hex） |
 | PUT | `/v1/ledger/:id` | 写入；`?merge=1` 或 body `merge: true` 为合并 |
 | GET | `/v1/ledger/:id/stream` | SSE 实时推送；密钥通过 `?s=` 或头 `X-Proxy-Secret` |
+| GET | `/v1/me` | 当前登录用户（Bearer `Authorization` 或调试 `?token=`）读取 `users/{uid}` |
+| PUT | `/v1/me` | 写入同上；`?merge=1` 或 body `merge: true` 为合并 |
+| GET | `/v1/me/stream` | SSE；Token 常用查询参数 `?token=`（EventSource 无法带头） |
 
-Firestore 规则仍建议与第 2 节一致；代理使用 Admin SDK **绕过规则**，务必保护好服务账号与 `PROXY_SHARED_SECRET`。
+`/v1/me*` **仅验证 Firebase ID Token**，不使用 `PROXY_SHARED_SECRET`。  
+Firestore 规则仍建议与第 2 节一致；代理使用 Admin SDK **绕过规则**，务必保护好服务账号与 `PROXY_SHARED_SECRET`（同步码接口仍可用）。
 
 ### 免费云端托管（无自备服务器）
 

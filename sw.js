@@ -1,4 +1,4 @@
-const CACHE = "couple-rewards-app-v16-proxy-warmup";
+const CACHE = "couple-rewards-app-v17-account-sync";
 const PRECACHE = [
   "./index.html",
   "./manifest.json",

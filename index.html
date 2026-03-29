@@ -13,11 +13,20 @@
       var p = window.COUPLE_REWARDS_API_PROXY;
       var useProxy = p && String(p).trim();
       window.__useCoupleRewardsProxy = Boolean(useProxy);
-      if (useProxy) return;
-      document.write(
-        '<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js" onerror="window.__firebaseLoadError=1"><\/script>' +
-        '<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js" onerror="window.__firebaseLoadError=1"><\/script>'
-      );
+      var b = "https://www.gstatic.com/firebasejs/10.7.1/";
+      var e = ' onerror="window.__firebaseLoadError=1"';
+      if (useProxy) {
+        document.write(
+          '<script src="' + b + 'firebase-app-compat.js"' + e + "><\/script>" +
+            '<script src="' + b + 'firebase-auth-compat.js"' + e + "><\/script>"
+        );
+      } else {
+        document.write(
+          '<script src="' + b + 'firebase-app-compat.js"' + e + "><\/script>" +
+            '<script src="' + b + 'firebase-firestore-compat.js"' + e + "><\/script>" +
+            '<script src="' + b + 'firebase-auth-compat.js"' + e + "><\/script>"
+        );
+      }
     })();
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -868,6 +877,32 @@
           <button type="button" class="btn btn-ghost btn-sm" id="clearHistory">清空记录（保留积分与模板）</button>
         </div>
       </div>
+      <div class="section-title" style="margin-top: 22px;">账号同步（推荐）</div>
+      <div class="card" id="accountSyncCard">
+        <p class="help-text">
+          两人使用<strong>同一个邮箱和密码</strong>登录，即可在不同手机或电脑上<strong>共用一份账本</strong>，无需同步码。需先在 Firebase 控制台开启「邮箱/密码」登录（见 SYNC_SETUP.md）。
+        </p>
+        <div id="accountLoggedOut">
+          <div class="field">
+            <label for="accountEmail">邮箱</label>
+            <input id="accountEmail" type="email" autocomplete="username" inputmode="email" placeholder="例如 couple@example.com" maxlength="120" />
+          </div>
+          <div class="field">
+            <label for="accountPassword">密码（至少 6 位）</label>
+            <input id="accountPassword" type="password" autocomplete="current-password" placeholder="两人约定同一密码" maxlength="128" />
+          </div>
+          <div class="toolbar" style="flex-direction: column; align-items: stretch;">
+            <button type="button" class="btn btn-good" id="accountRegister">注册并上传当前账本</button>
+            <button type="button" class="btn btn-gold" id="accountLogin">登录并拉取云端</button>
+          </div>
+        </div>
+        <div id="accountLoggedIn" hidden>
+          <p class="help-text" id="accountLoggedInSummary" style="margin-bottom: 12px;"></p>
+          <div class="toolbar">
+            <button type="button" class="btn btn-bad btn-sm" id="accountLogout">退出账号</button>
+          </div>
+        </div>
+      </div>
       <div class="section-title" style="margin-top: 22px;">云端同步</div>
       <div class="card" id="syncCard">
         <p class="help-text" id="syncHelp">在两台设备上使用同一同步码即可实时同步（需联网）。若在微信里失败，请点右上角「在浏览器打开」用 Safari/Chrome 再试。</p>
@@ -1022,6 +1057,8 @@
     let cloudUnsub = null;
     let cloudPushTimer = null;
     let lastListenerErrorToastAt = 0;
+    let accountUnsub = null;
+    let accountPushTimer = null;
 
     function firebaseConfigured() {
       const c = window.COUPLE_REWARDS_FIREBASE;
@@ -1029,7 +1066,22 @@
     }
 
     function firebaseReady() {
-      return typeof firebase !== "undefined" && firebase.apps && firebase.apps.length > 0;
+      return (
+        typeof firebase !== "undefined" &&
+        firebase.apps &&
+        firebase.apps.length > 0 &&
+        !useProxySync() &&
+        typeof firebase.firestore === "function"
+      );
+    }
+
+    function getAccountUser() {
+      try {
+        if (typeof firebase === "undefined" || !firebase.auth) return null;
+        return firebase.auth().currentUser || null;
+      } catch {
+        return null;
+      }
     }
 
     function getProxyBase() {
@@ -1062,7 +1114,12 @@
 
     function anyCloudErrorMsg(e, fallback) {
       if (e && typeof e.status === "number") {
-        if (e.status === 401 || e.status === 403) {
+        if (e.status === 401) {
+          return getAccountUser()
+            ? "登录已失效，请退出账号后重新登录"
+            : "同步代理拒绝访问：请检查 COUPLE_REWARDS_PROXY_SECRET 是否与服务器一致";
+        }
+        if (e.status === 403) {
           return "同步代理拒绝访问：请检查 COUPLE_REWARDS_PROXY_SECRET 是否与服务器一致";
         }
         if (e.status === 503) {
@@ -1328,7 +1385,7 @@
       };
     }
 
-    function initFirestoreIfNeeded(opts) {
+    function initFirebaseAppForAuth(opts) {
       const silent = opts && opts.silent;
       if (!firebaseConfigured()) {
         if (!silent) toast("请先在 firebase-config.js 中填写 Firebase 配置并部署");
@@ -1344,20 +1401,28 @@
         if (!silent) toast("firebase-config.js 加载失败，请刷新页面");
         return false;
       }
-      if (firebase.apps && firebase.apps.length > 0) return true;
       try {
-        firebase.initializeApp(window.COUPLE_REWARDS_FIREBASE);
-        const db = firebase.firestore();
-        try {
-          db.settings({ experimentalForceLongPolling: true });
-        } catch (_) {}
-        db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
+        if (!firebase.apps || firebase.apps.length === 0) {
+          firebase.initializeApp(window.COUPLE_REWARDS_FIREBASE);
+        }
+        if (!useProxySync() && typeof firebase.firestore === "function") {
+          const db = firebase.firestore();
+          try {
+            db.settings({ experimentalForceLongPolling: true });
+          } catch (_) {}
+          db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
+        }
         return true;
       } catch (e) {
         console.error(e);
         if (!silent) toast("Firebase 初始化失败，请检查 firebase-config.js");
         return false;
       }
+    }
+
+    function initFirestoreIfNeeded(opts) {
+      if (useProxySync()) return false;
+      return initFirebaseAppForAuth(opts);
     }
 
     function initSyncIfNeeded(opts) {
@@ -1397,6 +1462,7 @@
     }
 
     function scheduleCloudPush() {
+      if (getAccountUser()) return;
       if (!getSyncId() || !syncBackendReady()) return;
       clearTimeout(cloudPushTimer);
       cloudPushTimer = setTimeout(async () => {
@@ -1421,6 +1487,215 @@
           toast(anyCloudErrorMsg(e, "云端保存失败，请检查网络"));
         }
       }, 500);
+    }
+
+    function detachAccountListener() {
+      if (typeof accountUnsub === "function") {
+        accountUnsub();
+        accountUnsub = null;
+      }
+    }
+
+    async function accountFetchJson(path, init, timeoutMs) {
+      const user = getAccountUser();
+      if (!user) throw new Error("未登录");
+      const token = await user.getIdToken();
+      const base = getProxyBase();
+      const ms = timeoutMs != null ? timeoutMs : 65000;
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), ms);
+      const hdr = {
+        Accept: "application/json",
+        Authorization: "Bearer " + token,
+        ...(init && init.headers),
+      };
+      if (init && init.body != null && !hdr["Content-Type"]) {
+        hdr["Content-Type"] = "application/json";
+      }
+      let r;
+      try {
+        r = await fetch(base + path, {
+          ...init,
+          headers: hdr,
+          cache: "no-store",
+          signal: ctrl.signal,
+        });
+      } catch (err) {
+        if (err && err.name === "AbortError") {
+          const te = new Error("timeout");
+          te.status = 408;
+          throw te;
+        }
+        throw err;
+      } finally {
+        clearTimeout(timer);
+      }
+      const text = await r.text();
+      let json = null;
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch (_) {}
+      if (!r.ok) {
+        const err = new Error(
+          (json && json.error) || text.slice(0, 200) || r.statusText || "request failed"
+        );
+        err.status = r.status;
+        throw err;
+      }
+      return json;
+    }
+
+    async function accountPutMergeProxy() {
+      await accountFetchJson(
+        "/v1/me?merge=1",
+        {
+          method: "PUT",
+          body: JSON.stringify({ data: getSyncPayload(), merge: true }),
+        },
+        72000
+      );
+    }
+
+    async function accountPutFullProxy() {
+      await accountFetchJson(
+        "/v1/me",
+        {
+          method: "PUT",
+          body: JSON.stringify({ data: getSyncPayload(), merge: false }),
+        },
+        72000
+      );
+    }
+
+    function scheduleAccountPush() {
+      if (!getAccountUser()) return;
+      clearTimeout(accountPushTimer);
+      accountPushTimer = setTimeout(async () => {
+        const cur = getAccountUser();
+        if (!cur) return;
+        try {
+          if (useProxySync()) {
+            await accountPutMergeProxy();
+          } else {
+            const db = firebase.firestore();
+            await ledgerSetWithRetry(
+              db.collection("users").doc(cur.uid),
+              {
+                data: getSyncPayload(),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+          }
+        } catch (e) {
+          console.error(e);
+          toast(anyCloudErrorMsg(e, "账号同步保存失败"), 4500);
+        }
+      }, 500);
+    }
+
+    function applyAccountRemotePayload(raw) {
+      const next = normalizeImportedPayload(raw);
+      if (!next) return;
+      Object.assign(state, next);
+      renderPersonUI();
+      renderBalance();
+      renderGoodList();
+      renderBadList();
+      renderRewardList();
+      renderHistory();
+      saveState({ skipCloud: true });
+      updateSyncUI();
+      updateAccountSyncUI();
+    }
+
+    async function attachAccountListener() {
+      detachAccountListener();
+      const user = getAccountUser();
+      if (!user) return;
+      if (useProxySync()) {
+        let token;
+        try {
+          token = await user.getIdToken();
+        } catch (e) {
+          console.error(e);
+          return;
+        }
+        const url = `${getProxyBase()}/v1/me/stream?token=${encodeURIComponent(token)}`;
+        let es;
+        try {
+          es = new EventSource(url);
+        } catch (e) {
+          console.error(e);
+          return;
+        }
+        es.onmessage = (ev) => {
+          try {
+            const parsed = JSON.parse(ev.data);
+            if (!parsed || parsed.data == null) return;
+            applyAccountRemotePayload(parsed.data);
+          } catch (_) {}
+        };
+        es.onerror = () => {
+          toastListenerErrorDebounced({ message: "account stream" });
+        };
+        accountUnsub = () => {
+          try {
+            es.close();
+          } catch (_) {}
+        };
+        return;
+      }
+      if (!firebase.firestore) return;
+      const db = firebase.firestore();
+      accountUnsub = db
+        .collection("users")
+        .doc(user.uid)
+        .onSnapshot(
+          (snap) => {
+            if (!snap.exists) return;
+            if (snap.metadata.hasPendingWrites) return;
+            const d = snap.data();
+            if (!d || !d.data) return;
+            applyAccountRemotePayload(d.data);
+          },
+          (err) => {
+            console.error(err);
+            toastListenerErrorDebounced(err);
+          }
+        );
+    }
+
+    function updateAccountSyncUI() {
+      const out = document.getElementById("accountLoggedOut");
+      const inn = document.getElementById("accountLoggedIn");
+      const sum = document.getElementById("accountLoggedInSummary");
+      if (!out || !inn) return;
+      const u = getAccountUser();
+      if (u) {
+        out.hidden = true;
+        inn.hidden = false;
+        if (sum) sum.textContent = "已登录：" + (u.email || u.uid);
+      } else {
+        out.hidden = false;
+        inn.hidden = true;
+      }
+    }
+
+    async function bootAccountSession() {
+      if (!initFirebaseAppForAuth({ silent: true })) return;
+      if (typeof firebase.auth !== "function") return;
+      const u = firebase.auth().currentUser;
+      if (!u) return;
+      setSyncId("");
+      detachCloudListener();
+      try {
+        await attachAccountListener();
+      } catch (e) {
+        console.error(e);
+      }
+      updateSyncUI();
+      updateAccountSyncUI();
     }
 
     function detachCloudListener() {
@@ -1475,9 +1750,15 @@
       const elHelp = document.getElementById("syncHelp");
       const elCode = document.getElementById("syncCodeDisplay");
       const elStat = document.getElementById("syncStatus");
-      const btnCreate = document.getElementById("createSyncRoom");
-      const btnJoin = document.getElementById("joinSyncRoom");
       if (!elAct || !elHelp) return;
+
+      if (getAccountUser()) {
+        elHelp.textContent =
+          "已使用「账号同步」，同步码已暂停。两台设备请用同一邮箱密码登录；退出账号后可再用同步码。";
+        elAct.hidden = true;
+        elInact.hidden = true;
+        return;
+      }
 
       if (!syncConfigured()) {
         elHelp.textContent =
@@ -1510,7 +1791,8 @@
     function saveState(options) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       const skipCloud = options && options.skipCloud;
-      if (!skipCloud && getSyncId() && syncBackendReady()) scheduleCloudPush();
+      if (!skipCloud && getAccountUser()) scheduleAccountPush();
+      else if (!skipCloud && getSyncId() && syncBackendReady()) scheduleCloudPush();
     }
 
     function normalizeImportedPayload(raw) {
@@ -2129,6 +2411,10 @@
     document.getElementById("createSyncRoom").addEventListener("click", async () => {
       const btn = document.getElementById("createSyncRoom");
       if (!btn) return;
+      if (getAccountUser()) {
+        toast("请先退出账号再使用同步码", 4000);
+        return;
+      }
       const createLabel = btn.textContent;
       let busy = false;
       try {
@@ -2192,6 +2478,10 @@
 
     document.getElementById("joinSyncRoom").addEventListener("click", async () => {
       const btnJ = document.getElementById("joinSyncRoom");
+      if (getAccountUser()) {
+        toast("请先退出账号再使用同步码", 4000);
+        return;
+      }
       if (!syncConfigured()) {
         toast("请配置 Firebase 或 COUPLE_REWARDS_API_PROXY（见 SYNC_SETUP.md）");
         return;
@@ -2262,6 +2552,10 @@
     });
 
     document.getElementById("disconnectSync").addEventListener("click", async () => {
+      if (getAccountUser()) {
+        toast("当前为账号同步，请用「退出账号」", 4000);
+        return;
+      }
       const ok = await confirm("断开后本机不再自动同步，云端数据仍保留。确定？");
       if (!ok) return;
       detachCloudListener();
@@ -2281,12 +2575,214 @@
       }
     });
 
-    if (getSyncId()) {
-      if (initSyncIfNeeded({ silent: true })) {
-        attachCloudListener(getSyncId());
+    document.getElementById("accountRegister").addEventListener("click", async () => {
+      const btn = document.getElementById("accountRegister");
+      const label = btn && btn.textContent;
+      const email = document.getElementById("accountEmail").value.trim();
+      const password = document.getElementById("accountPassword").value;
+      if (!email || !password || password.length < 6) {
+        toast("请填写邮箱，密码至少 6 位", 4000);
+        return;
       }
-    }
-    updateSyncUI();
+      if (!syncConfigured()) {
+        toast("请配置 Firebase 直连，或填写 COUPLE_REWARDS_API_PROXY（见 SYNC_SETUP.md）", 4000);
+        return;
+      }
+      if (!useProxySync()) {
+        if (typeof firebase === "undefined" || window.__firebaseLoadError) {
+          toast("Firebase 未加载，请用系统浏览器打开本页或换网络", 4000);
+          return;
+        }
+      }
+      if (window.__firebaseConfigError) {
+        toast("配置脚本未加载，请刷新页面", 4000);
+        return;
+      }
+      if (!initSyncIfNeeded()) return;
+      if (!initFirebaseAppForAuth()) return;
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "处理中…";
+      }
+      try {
+        await firebase.auth().createUserWithEmailAndPassword(email, password);
+        detachCloudListener();
+        setSyncId("");
+        if (useProxySync()) {
+          toast("正在唤醒同步服务…", 120000);
+          await ensureProxyAwake();
+          toast("正在上传账本…", 90000);
+          await accountPutFullProxy();
+        } else {
+          const u = getAccountUser();
+          toast("正在上传账本…", 9000);
+          await ledgerSetWithRetry(
+            firebase.firestore().collection("users").doc(u.uid),
+            {
+              data: getSyncPayload(),
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            }
+          );
+        }
+        hideToast();
+        await attachAccountListener();
+        updateAccountSyncUI();
+        updateSyncUI();
+        renderAll();
+        toast("注册成功，另一方用同一邮箱密码登录即可", 5000);
+      } catch (e) {
+        const c = e.code || "";
+        if (String(c).indexOf("auth/") === 0) {
+          if (c === "auth/email-already-in-use") {
+            toast("该邮箱已注册，请点「登录并拉取云端」", 5000);
+          } else {
+            toast(e.message || "注册失败", 5000);
+          }
+        } else {
+          console.error(e);
+          hideToast();
+          try {
+            await firebase.auth().signOut();
+          } catch (_) {}
+          detachAccountListener();
+          toast(anyCloudErrorMsg(e, "上传失败"), 8000);
+        }
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = label;
+        }
+      }
+    });
+
+    document.getElementById("accountLogin").addEventListener("click", async () => {
+      const btn = document.getElementById("accountLogin");
+      const label = btn && btn.textContent;
+      const email = document.getElementById("accountEmail").value.trim();
+      const password = document.getElementById("accountPassword").value;
+      if (!email || !password) {
+        toast("请填写邮箱和密码", 4000);
+        return;
+      }
+      if (!syncConfigured()) {
+        toast("请配置 Firebase 或 COUPLE_REWARDS_API_PROXY（见 SYNC_SETUP.md）", 4000);
+        return;
+      }
+      if (!useProxySync()) {
+        if (typeof firebase === "undefined" || window.__firebaseLoadError) {
+          toast("Firebase 未加载，请用系统浏览器打开本页或换网络", 4000);
+          return;
+        }
+      }
+      if (window.__firebaseConfigError) {
+        toast("配置脚本未加载，请刷新页面", 4000);
+        return;
+      }
+      if (!initSyncIfNeeded()) return;
+      if (!initFirebaseAppForAuth()) return;
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "登录中…";
+      }
+      try {
+        await firebase.auth().signInWithEmailAndPassword(email, password);
+        detachCloudListener();
+        setSyncId("");
+        let remoteData = null;
+        if (useProxySync()) {
+          toast("正在拉取云端…", 90000);
+          await ensureProxyAwake();
+          const j = await accountFetchJson("/v1/me", { method: "GET" }, 65000);
+          if (j && j.exists && j.data) remoteData = j.data;
+        } else {
+          const u = getAccountUser();
+          const ref = firebase.firestore().collection("users").doc(u.uid);
+          const snap = await ledgerGetWithRetry(ref);
+          if (snap.exists) {
+            const v = snap.data();
+            remoteData = v && v.data;
+          }
+        }
+        hideToast();
+        if (!remoteData) {
+          toast("云端暂无数据，请先由一方「注册并上传」；本机已登录，对方上传后会自动同步", 6000);
+          await attachAccountListener();
+          updateAccountSyncUI();
+          updateSyncUI();
+          renderAll();
+          return;
+        }
+        const ok = await confirm("用云端数据覆盖本机当前账本？");
+        if (!ok) {
+          await firebase.auth().signOut();
+          updateAccountSyncUI();
+          updateSyncUI();
+          return;
+        }
+        const next = normalizeImportedPayload(remoteData);
+        if (!next) {
+          toast("云端数据无法解析", 4000);
+          await firebase.auth().signOut();
+          updateAccountSyncUI();
+          updateSyncUI();
+          return;
+        }
+        Object.assign(state, next);
+        saveState({ skipCloud: true });
+        await attachAccountListener();
+        renderAll();
+        updateAccountSyncUI();
+        updateSyncUI();
+        toast("已登录并同步", 4000);
+      } catch (e) {
+        const c = e.code || "";
+        if (String(c).indexOf("auth/") === 0) {
+          toast(e.message || "登录失败", 5000);
+        } else {
+          console.error(e);
+          hideToast();
+          try {
+            await firebase.auth().signOut();
+          } catch (_) {}
+          detachAccountListener();
+          toast(anyCloudErrorMsg(e, "拉取失败"), 5500);
+        }
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = label;
+        }
+      }
+    });
+
+    document.getElementById("accountLogout").addEventListener("click", async () => {
+      const ok = await confirm("退出后本机保留当前画面数据；同步码功能将恢复。确定退出？");
+      if (!ok) return;
+      detachAccountListener();
+      try {
+        await firebase.auth().signOut();
+      } catch (e) {
+        console.error(e);
+      }
+      updateAccountSyncUI();
+      updateSyncUI();
+      renderAll();
+      toast("已退出账号", 3000);
+    });
+
+    (async function runBoot() {
+      if (typeof firebase !== "undefined" && typeof firebase.auth === "function") {
+        await bootAccountSession();
+      }
+      if (getSyncId() && !getAccountUser()) {
+        if (initSyncIfNeeded({ silent: true })) {
+          attachCloudListener(getSyncId());
+        }
+      }
+      updateSyncUI();
+      updateAccountSyncUI();
+      renderAll();
+    })();
 
     if ("serviceWorker" in navigator) {
       const { protocol, hostname } = location;
@@ -2299,8 +2795,6 @@
           .catch(() => {});
       }
     }
-
-    renderAll();
   </script>
 </body>
 </html>

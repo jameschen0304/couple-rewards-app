@@ -60,6 +60,103 @@ app.get("/health", (_, res) => {
   res.json({ ok: true, firestore: Boolean(db) });
 });
 
+async function verifyIdTokenFromRequest(req, res) {
+  if (!requireDb(res)) return null;
+  const authHeader = req.get("Authorization") || "";
+  const m = authHeader.match(/^Bearer\s+(.+)$/i);
+  const q = req.query.token || req.query.t;
+  const token = m ? m[1].trim() : String(q || "").trim();
+  if (!token) {
+    res.status(401).json({ error: "missing token" });
+    return null;
+  }
+  try {
+    return await admin.auth().verifyIdToken(token);
+  } catch (e) {
+    console.error("verifyIdToken", e.message);
+    res.status(401).json({ error: "invalid token" });
+    return null;
+  }
+}
+
+app.get("/v1/me", async (req, res) => {
+  const user = await verifyIdTokenFromRequest(req, res);
+  if (!user) return;
+  try {
+    const snap = await db.collection("users").doc(user.uid).get();
+    if (!snap.exists) return res.json({ exists: false });
+    const v = snap.data() || {};
+    return res.json({ exists: true, data: v.data ?? null });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
+app.put("/v1/me", async (req, res) => {
+  const user = await verifyIdTokenFromRequest(req, res);
+  if (!user) return;
+  const { data, merge } = req.body || {};
+  if (!data || typeof data !== "object") {
+    return res.status(400).json({ error: "body.data required" });
+  }
+  const useMerge = merge === true || req.query.merge === "1";
+  try {
+    const ref = db.collection("users").doc(user.uid);
+    const payload = {
+      data,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+    if (useMerge) await ref.set(payload, { merge: true });
+    else await ref.set(payload);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: String(e.message || e) });
+  }
+});
+
+app.get("/v1/me/stream", async (req, res) => {
+  const user = await verifyIdTokenFromRequest(req, res);
+  if (!user) return;
+
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  if (typeof res.flushHeaders === "function") res.flushHeaders();
+
+  const ref = db.collection("users").doc(user.uid);
+  const unsub = ref.onSnapshot(
+    (snap) => {
+      if (!snap.exists) return;
+      const v = snap.data();
+      if (!v || v.data == null) return;
+      res.write(`data: ${JSON.stringify({ data: v.data })}\n\n`);
+    },
+    (err) => {
+      console.error("users onSnapshot", err);
+      try {
+        res.write(
+          `event: error\ndata: ${JSON.stringify({ message: String(err.message || err) })}\n\n`
+        );
+      } catch (_) {}
+    }
+  );
+
+  const hb = setInterval(() => {
+    try {
+      res.write(":hb\n\n");
+    } catch (_) {}
+  }, 25000);
+
+  req.on("close", () => {
+    clearInterval(hb);
+    unsub();
+  });
+});
+
 function requireDb(res) {
   if (!db) {
     res.status(503).json({
