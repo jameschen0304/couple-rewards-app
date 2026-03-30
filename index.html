@@ -849,6 +849,79 @@
       color: var(--text);
       line-height: 1.45;
     }
+
+    /* ===== Couples conflict emotion assistant ===== */
+    #panel-anger .assistant {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    #panel-anger .assistant .assistant-block-title {
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      color: #1a6b45;
+      opacity: 0.9;
+      text-transform: uppercase;
+    }
+
+    #panel-anger .assistant .assistant-timer {
+      font-family: var(--font-num);
+      font-size: 2.15rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      background: linear-gradient(180deg, #1b7f57 0%, #4fe9a4 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-align: center;
+      margin: 10px 0 6px;
+      user-select: none;
+    }
+
+    #panel-anger .assistant textarea,
+    #panel-anger .assistant select {
+      width: 100%;
+      padding: 11px 14px;
+      border-radius: var(--radius-xs);
+      border: 1px solid var(--border-soft);
+      background: var(--surface2);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.9375rem;
+      line-height: 1.6;
+      transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease), background 0.2s var(--ease);
+    }
+
+    #panel-anger .assistant textarea {
+      resize: vertical;
+      min-height: 86px;
+    }
+
+    #panel-anger .assistant textarea:focus,
+    #panel-anger .assistant select:focus {
+      outline: none;
+      border-color: rgba(60, 180, 120, 0.55);
+      background: #ffffff;
+      box-shadow: 0 0 0 4px rgba(100, 210, 150, 0.22);
+    }
+
+    #panel-anger .assistant textarea[readonly] {
+      background: #ffffff;
+    }
+
+    #panel-anger .assistant .assistant-help {
+      color: var(--muted);
+      font-size: 0.8125rem;
+      line-height: 1.55;
+    }
+
+    #panel-anger .assistant .assistant-chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
   </style>
 </head>
 <body>
@@ -905,6 +978,7 @@
       <button type="button" data-tab="bad" role="tab" aria-selected="false">扣分</button>
       <button type="button" data-tab="redeem" role="tab" aria-selected="false">兑换</button>
       <button type="button" data-tab="history" role="tab" aria-selected="false">记录</button>
+      <button type="button" data-tab="anger" role="tab" aria-selected="false">吵架急救</button>
     </nav>
 
     <section id="panel-good" class="panel active" role="tabpanel">
@@ -1056,6 +1130,160 @@
         <div class="toolbar" style="margin-top: 4px;">
           <button type="button" class="btn btn-bad btn-sm" id="resetAll">清空全部数据</button>
         </div>
+      </div>
+    </section>
+
+    <section id="panel-anger" class="panel" role="tabpanel" hidden>
+      <div class="section-title">吵架急救助手（本地模板）</div>
+
+      <div class="card assistant">
+        <div class="assistant-block-title">先把自己按住</div>
+        <p class="assistant-help">
+          当你感觉要爆炸/想冷战时，先暂停 20 秒。目标不是赢，而是让我们都更安全、更能好好说话。
+        </p>
+        <div class="toolbar">
+          <button type="button" class="btn btn-good" id="angerStartBreath">开始急救（20 秒）</button>
+          <button type="button" class="btn btn-ghost" id="angerSkipBreath">我已经冷静了</button>
+        </div>
+
+        <div id="angerBreathBox" hidden>
+          <div id="angerTimerDisplay" class="assistant-timer">20 秒</div>
+          <div id="angerBreathStepText" class="assistant-help" style="text-align:center;">
+            吸气…停 1 秒…呼气…再来一次
+          </div>
+          <div class="assistant-help" style="margin-top: 10px;">
+            完成后继续下一步：复述她的话（第 2 步）。
+          </div>
+        </div>
+      </div>
+
+      <div class="card assistant">
+        <div class="assistant-block-title">第 2 步：认真倾听（先复述）</div>
+        <div class="field">
+          <label for="angerListenInput">她刚才说了什么（原话/关键词都可以）</label>
+          <textarea
+            id="angerListenInput"
+            placeholder="例如：你总是… / 你从来不… / 我觉得你不理解我…"
+            rows="3"
+          ></textarea>
+        </div>
+        <div class="toolbar">
+          <button type="button" class="btn btn-good" id="angerGenerateListen">生成倾听话术</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="angerCopyListen">复制</button>
+        </div>
+        <textarea id="angerListenOutput" readonly placeholder="点击上方生成…"></textarea>
+        <p class="assistant-help">复述时尽量“像翻译”，不要急着反驳。</p>
+      </div>
+
+      <div class="card assistant">
+        <div class="assistant-block-title">第 3 步：非暴力沟通（NVC）</div>
+
+        <div class="field">
+          <label for="angerObs">观察（事实：发生了什么，不带指责）</label>
+          <textarea id="angerObs" placeholder="例如：今晚你提高了音量；我们争论时我打断了你…"></textarea>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="angerFeel">感受（我此刻的情绪）</label>
+            <input id="angerFeel" type="text" placeholder="委屈/生气/紧张/失望" maxlength="20" />
+          </div>
+          <div class="field">
+            <label for="angerNeed">需要（我需要什么）</label>
+            <input id="angerNeed" type="text" placeholder="被理解/安全感/尊重/安静" maxlength="20" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="angerRequest">请求（具体：你希望她做什么）</label>
+          <textarea id="angerRequest" placeholder="例如：你先把话说完，我再复述一次；我们明天约 20 分钟谈解决方案。"></textarea>
+        </div>
+
+        <div class="toolbar">
+          <button type="button" class="btn btn-good" id="angerGenerateNvc">生成 NVC 话术</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="angerCopyNvc">复制</button>
+        </div>
+        <textarea id="angerNvcOutput" readonly placeholder="点击上方生成…"></textarea>
+      </div>
+
+      <div class="card assistant">
+        <div class="assistant-block-title">第 4 步：关键对话（把问题变成方案）</div>
+
+        <div class="row">
+          <div class="field">
+            <label for="angerIssueType">这次主要是哪类问题？</label>
+            <select id="angerIssueType">
+              <option value="housework">家务与分工</option>
+              <option value="money">金钱/消费</option>
+              <option value="time">时间与陪伴</option>
+              <option value="communication">沟通方式/语气</option>
+              <option value="other" selected>其他</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="angerConcern">我真正担心的是什么？</label>
+          <textarea id="angerConcern" placeholder="例如：我们会越来越远；不解决问题只会越吵越伤…"></textarea>
+        </div>
+
+        <div class="field">
+          <label for="angerDesired">我希望达成的结果是什么？（尽量具体）</label>
+          <textarea id="angerDesired" placeholder="例如：今晚把事情说清楚；以后不再用冷战处理矛盾；我们各自知道怎么做。"></textarea>
+        </div>
+
+        <div class="toolbar">
+          <button type="button" class="btn btn-good" id="angerGenerateDialogue">生成关键对话方案</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="angerCopyDialogue">复制</button>
+        </div>
+        <textarea id="angerDialogueOutput" readonly placeholder="点击上方生成…"></textarea>
+      </div>
+
+      <div class="card assistant">
+        <div class="assistant-block-title">第 5 步：讲个小笑话（降温）</div>
+        <p class="assistant-help">笑话的目的：让她感到“我在乎你”，不是让你们互相吐槽。</p>
+        <div class="toolbar">
+          <button type="button" class="btn btn-gold" id="angerJokeNext">给我再来一个笑点</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="angerCopyJoke">复制</button>
+        </div>
+        <textarea id="angerJokeOutput" readonly placeholder="先点“再来一个笑点”…"></textarea>
+      </div>
+
+      <div class="card assistant">
+        <div class="assistant-block-title">第 6 步：小礼物/甜点/奶茶（收尾）</div>
+
+        <div class="assistant-help">先选一个收尾方向；你也可以从你们现有的“兑换项”里挑一个。</div>
+
+        <div class="assistant-chip-row" style="margin-top: 8px;">
+          <button type="button" class="btn btn-ghost btn-sm" data-gift-kind="milkTea">奶茶</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-gift-kind="dessert">甜点</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-gift-kind="smallGift">小礼物</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-gift-kind="note">手写便条</button>
+        </div>
+
+        <div id="angerGiftPickedHint" class="assistant-help" style="margin-top: 8px;"></div>
+
+        <div class="section-title" style="margin-top: 18px;">可选：用你们现有兑换项</div>
+        <div id="angerGiftLedgerList" class="chip-list" aria-label="兑换项列表"></div>
+
+        <div class="toolbar" style="margin-top: 12px;">
+          <button type="button" class="btn btn-good" id="angerGenerateGift">生成礼物收尾话术</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="angerCopyGift">复制</button>
+        </div>
+        <textarea id="angerGiftOutput" readonly placeholder="点击“生成礼物收尾话术”…"></textarea>
+      </div>
+
+      <div class="card assistant">
+        <div class="assistant-block-title">一键生成：完整收尾话术</div>
+        <p class="assistant-help">把下面这段直接读给她听，语气放慢，别急着追问对错。</p>
+        <div class="toolbar">
+          <button type="button" class="btn btn-good" id="angerFinalize">生成完整话术</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="angerCopyFinal">复制</button>
+        </div>
+        <textarea id="angerFinalOutput" readonly placeholder="点击上方“生成完整话术”…"></textarea>
+        <p class="assistant-help" style="margin-top: 10px;">
+          安全提醒：如果你觉得自己快要失控，先离开现场、让自己冷静，并寻求信任的人或专业帮助。
+        </p>
       </div>
     </section>
   </div>
@@ -3114,6 +3342,539 @@
           .catch(() => {});
       }
     }
+
+    // ===== Couples conflict emotion assistant (local templates) =====
+    (function initAngerHelper() {
+      const panel = document.getElementById("panel-anger");
+      if (!panel) return;
+
+      const el = (id) => document.getElementById(id);
+      const toastText = (msg) => toast(msg, 2200);
+
+      const startBtn = el("angerStartBreath");
+      const skipBtn = el("angerSkipBreath");
+      const breathBox = el("angerBreathBox");
+      const timerDisplay = el("angerTimerDisplay");
+      const breathText = el("angerBreathStepText");
+
+      const listenInput = el("angerListenInput");
+      const listenOutput = el("angerListenOutput");
+      const genListenBtn = el("angerGenerateListen");
+      const copyListenBtn = el("angerCopyListen");
+
+      const obsEl = el("angerObs");
+      const feelEl = el("angerFeel");
+      const needEl = el("angerNeed");
+      const reqEl = el("angerRequest");
+      const nvcOutput = el("angerNvcOutput");
+      const genNvcBtn = el("angerGenerateNvc");
+      const copyNvcBtn = el("angerCopyNvc");
+
+      const concernEl = el("angerConcern");
+      const desiredEl = el("angerDesired");
+      const issueTypeEl = el("angerIssueType");
+      const dialogueOutput = el("angerDialogueOutput");
+      const genDialogueBtn = el("angerGenerateDialogue");
+      const copyDialogueBtn = el("angerCopyDialogue");
+
+      const jokeOutput = el("angerJokeOutput");
+      const jokeBtn = el("angerJokeNext");
+      const copyJokeBtn = el("angerCopyJoke");
+
+      const giftHint = el("angerGiftPickedHint");
+      const giftKindButtons = panel.querySelectorAll("[data-gift-kind]");
+      const giftLedgerList = el("angerGiftLedgerList");
+      const giftOutput = el("angerGiftOutput");
+      const genGiftBtn = el("angerGenerateGift");
+      const copyGiftBtn = el("angerCopyGift");
+
+      const finalBtn = el("angerFinalize");
+      const finalOutput = el("angerFinalOutput");
+      const copyFinalBtn = el("angerCopyFinal");
+
+      let breathTimer = null;
+      let breathLeft = 0;
+
+      let selectedGiftKind = null; // milkTea | dessert | smallGift | note
+      let selectedLedgerRewardId = null; // from state.rewards
+
+      const wifeName = () => (state && state.nameWife ? state.nameWife : "老婆");
+
+      async function copyText(text) {
+        const t = String(text || "").trim();
+        if (!t) {
+          toastText("没有可复制的内容");
+          return;
+        }
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(t);
+          } else {
+            const ta = document.createElement("textarea");
+            ta.value = t;
+            ta.style.position = "fixed";
+            ta.style.left = "-9999px";
+            ta.style.top = "-9999px";
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            document.execCommand("copy");
+            document.body.removeChild(ta);
+          }
+          toastText("已复制");
+        } catch {
+          toastText("复制失败，请手动长按复制");
+        }
+      }
+
+      async function tryAiGenerate(path, payload, timeoutMs) {
+        try {
+          const base = getProxyBase();
+          if (!base) return null;
+          const data = await proxyFetchJson(
+            path,
+            {
+              method: "POST",
+              body: JSON.stringify(payload || {}),
+            },
+            timeoutMs != null ? timeoutMs : 50000
+          );
+          const text = data && typeof data.text === "string" ? data.text : "";
+          return text.trim() ? text.trim() : null;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function normalizeText(s) {
+        return String(s || "").trim();
+      }
+
+      function inferSoftFeeling(text) {
+        const t = String(text || "");
+        const hasAny = (keys) => keys.some((k) => t.indexOf(k) >= 0);
+        if (hasAny(["委屈", "难过", "受伤", "受委屈"])) return "你一定很委屈/难过";
+        if (hasAny(["生气", "气", "愤怒", "火大"])) return "你可能有点生气、气不过";
+        if (hasAny(["失望", "落空", "很无奈"])) return "你可能很失望、也很无奈";
+        if (hasAny(["冷战", "沉默", "不理", "不说话"])) return "你感到被冷落/不被看见";
+        if (hasAny(["不理解", "听不见", "不被理解"])) return "你觉得我没有真正理解你";
+        if (hasAny(["着急", "焦虑", "担心"])) return "你现在一定很着急、很在意";
+        return "你在认真表达你的感受";
+      }
+
+      function inferNeed(text, issueType) {
+        const t = String(text || "");
+        const type = issueType || "";
+        const hasAny = (keys) => keys.some((k) => t.indexOf(k) >= 0);
+
+        if (type === "housework" || hasAny(["家务", "洗碗", "拖地", "打扫", "分工"])) return "公平分工与被看见的努力";
+        if (type === "money" || hasAny(["钱", "消费", "花", "账单", "存款", "礼物"])) return "安全感与透明沟通";
+        if (type === "time" || hasAny(["陪", "时间", "约", "晚", "手机", "忙"])) return "陪伴与被优先考虑";
+        if (type === "communication" || hasAny(["语气", "吼", "凶", "打断", "冷淡"])) return "被尊重与好好说话的方式";
+
+        if (hasAny(["理解", "听", "不被理解", "不理解"])) return "被理解与被好好倾听";
+        if (hasAny(["尊重", "重视", "看见"])) return "被尊重与被认真对待";
+        if (hasAny(["安全", "放心", "信任"])) return "安全感与信任";
+        return "被理解、一起把事情解决掉";
+      }
+
+      function safeLineBreak(s) {
+        return String(s || "").replace(/\r\n/g, "\n").trim();
+      }
+
+      function generateListenScript(raw) {
+        const t = normalizeText(raw);
+        if (!t) return "";
+        const feeling = inferSoftFeeling(t);
+        const need = inferNeed(t, issueTypeEl ? issueTypeEl.value : "");
+        return [
+          `${wifeName()}，谢谢你愿意说出来。`,
+          `我理解你刚才说的主要内容是：${t}。`,
+          `我也感受到：${feeling}。`,
+          `我猜你的需要可能是：${need}。`,
+          `我想先确认一下：我理解对了吗？你希望我接下来先做哪一件？`,
+        ].join("\n");
+      }
+
+      function generateNvcScript() {
+        const obs = normalizeText(obsEl && obsEl.value);
+        const feel = normalizeText(feelEl && feelEl.value);
+        const need = normalizeText(needEl && needEl.value);
+        const req = normalizeText(reqEl && reqEl.value);
+
+        if (!obs) {
+          toastText("请先填写“观察（事实）”");
+          return "";
+        }
+        const feel2 = feel || "有点不舒服/紧张";
+        const need2 = need || "我需要被理解与安全地沟通";
+        const req2 = req || "我们先暂停 10 分钟，然后我认真复述你说的，再一起找下一步。";
+
+        return [
+          `${wifeName()}，我想用非暴力沟通（NVC）再说一次更清楚的：`,
+          `观察：${obs}`,
+          `感受：当…我感到${feel2}`,
+          `需要：我需要${need2}`,
+          `请求：我希望你能${req2}`,
+          `你愿意先回答我一句：你听懂了吗？我们再一起讨论怎么做。`,
+        ].join("\n");
+      }
+
+      function issueSuggestions(issueType) {
+        switch (issueType) {
+          case "housework":
+            return [
+              "今晚先做一个 10 分钟小任务：我先从我负责的开始（洗/扫二选一）。",
+              "把家务拆成“清单 + 轮换周期”，减少靠情绪临时想起。",
+              "约定暂停信号：谁先爆了就先停，30 分钟后再继续聊分工。",
+            ];
+          case "money":
+            return [
+              "先暂停大额消费，等我们都冷静 15 分钟再决定。",
+              "约定每周预算与“需要提前说清”的大额项。",
+              "用对账/透明记录来减少误会：每次讨论都只谈事实与下一步。",
+            ];
+          case "time":
+            return [
+              "约一个“无手机、一起吃/散步 20 分钟”的时间点。",
+              "把陪伴变成可执行：今晚/明天各选一个具体时段。",
+              "当忙的时候先报备：我现在能给你的时间还有多久。",
+            ];
+          case "communication":
+            return [
+              "约定不在气头上做结论：先说感受，再说请求。",
+              "每次只提一个具体问题，避免“翻旧账”。",
+              "用 NVC 句式轮流说一遍：观察-感受-需要-请求，然后一起选下一步。",
+            ];
+          default:
+            return [
+              "先把问题聚焦到事实：到底发生了什么？别贴标签。",
+              "各自说出你最在意的一点（每人 1 分钟）。",
+              "从一个小行动开始：今晚/明天定一个可执行的下一步。",
+            ];
+        }
+      }
+
+      function generateDialogueScript() {
+        const concern = normalizeText(concernEl && concernEl.value);
+        const desired = normalizeText(desiredEl && desiredEl.value);
+        const issueType = issueTypeEl ? issueTypeEl.value : "other";
+
+        const c2 = concern || "我们越吵越远，但我更希望我们能靠近。";
+        const d2 = desired || "把问题说清楚，并约定下一步怎么做。";
+
+        const suggests = issueSuggestions(issueType);
+        return [
+          `${wifeName()}，我想让我们把这次吵架变成“下一步”。`,
+          `我真正担心的是：${c2}`,
+          `我希望我们达成的结果是：${d2}`,
+          `我建议我们用一个更安全的流程：`,
+          `1）先复述一遍对方说的话（不反驳，只确认理解）`,
+          `2）再说出各自需要的是什么（用请求来表达）`,
+          `3）最后选一个今晚/明天就能做到的小行动`,
+          `对应方案（从小做起）：`,
+          `- ${suggests[0]}`,
+          `- ${suggests[1]}`,
+          `- ${suggests[2]}`,
+          `你愿意先选哪一个作为“今天开始的第一步”？我会配合你。`,
+        ].join("\n");
+      }
+
+      const jokes = [
+        `你知道为什么奶茶吸管那么长吗？因为它想把“甜甜的想法”送到你嘴边。`,
+        `我刚刚想当“理性男”，结果你的表情让我自动切换到“哄哄模式”。`,
+        `如果吵架是游戏，那我现在选择：暂停，重新开始，选“认真听你说”。`,
+        `我不是不回消息，我是在给你酝酿一段更温柔的回复。`,
+        `今天我学会了一个新技能：把情绪放下，把你抱紧（嗯，文字先抱一下）。`,
+        `我宣布：今天的重点不是输赢，是你开心。我已经把“输”留给电脑了。`,
+        `情侣升级包已更新：V1.0 认真倾听，V1.1 轻声说，V2.0 甜甜收尾。`,
+        `你是不是在偷偷做“撒娇任务”？我收到系统提示：要奖励。`,
+      ];
+      let lastJoke = -1;
+
+      async function nextJoke() {
+        if (!jokeOutput) return false;
+
+        // 先尝试 AI（失败则自动回退到本地笑话列表）
+        try {
+          const aiText = await tryAiGenerate("/v1/ai/anger/joke", {
+            issueType: issueTypeEl ? issueTypeEl.value : "other",
+            concern: concernEl ? concernEl.value : "",
+            desired: desiredEl ? desiredEl.value : "",
+          });
+          if (aiText) {
+            jokeOutput.value = aiText;
+            return true;
+          }
+        } catch (_) {}
+
+        if (!Array.isArray(jokes) || jokes.length === 0) return false;
+        let idx = Math.floor(Math.random() * jokes.length);
+        if (jokes.length > 1 && idx === lastJoke) idx = (idx + 1) % jokes.length;
+        lastJoke = idx;
+        jokeOutput.value = jokes[idx];
+        return false;
+      }
+
+      function getSelectedLedgerReward() {
+        if (!selectedLedgerRewardId) return null;
+        const list = Array.isArray(state && state.rewards) ? state.rewards : [];
+        return list.find((r) => r && r.id === selectedLedgerRewardId) || null;
+      }
+
+      function renderLedgerGiftButtons() {
+        if (!giftLedgerList) return;
+        giftLedgerList.innerHTML = "";
+        const rewards = Array.isArray(state && state.rewards) ? state.rewards : [];
+        if (rewards.length === 0) {
+          const msg = document.createElement("div");
+          msg.className = "help-text";
+          msg.textContent = "你还没有兑换项（去“兑换”页添加后，这里就能选）";
+          giftLedgerList.appendChild(msg);
+          return;
+        }
+
+        rewards.slice(0, 8).forEach((r) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "btn btn-ghost btn-sm";
+          btn.textContent = `${r.name}（${r.cost}积分）`;
+          if (selectedLedgerRewardId && r && r.id === selectedLedgerRewardId) {
+            btn.classList.remove("btn-ghost");
+            btn.classList.add("btn-good");
+          }
+          btn.addEventListener("click", () => {
+            selectedLedgerRewardId = r.id;
+            selectedGiftKind = null;
+            giftHint.textContent = `已选：兑换「${r.name}」（${r.cost}积分）`;
+            renderLedgerGiftButtons();
+          });
+          giftLedgerList.appendChild(btn);
+        });
+      }
+
+      function giftKindInfo(kind) {
+        switch (kind) {
+          case "milkTea":
+            return { label: "奶茶", reason: "想用甜甜的方式把你的小委屈慢慢化开" };
+          case "dessert":
+            return { label: "甜点", reason: "让你先笑一下，再一起解决问题" };
+          case "smallGift":
+            return { label: "小礼物", reason: "我想让你感到：我在乎你，也在学习好好爱你" };
+          case "note":
+            return { label: "手写便条", reason: "用文字把我的道歉和感谢说清楚" };
+          default:
+            return { label: "奶茶", reason: "先甜一下，让我们都降降温" };
+        }
+      }
+
+      function generateGiftOutput() {
+        const ledgerReward = getSelectedLedgerReward();
+        if (ledgerReward) {
+          const cost = ledgerReward.cost;
+          const name = ledgerReward.name;
+          return [
+            `最后的小惊喜我想送你：用 ${cost} 积分为你兑换「${name}」。`,
+            `等你情绪缓一点，我们就把这份小奖励安排上。`,
+            `也谢谢你刚才愿意听我把话说清楚。`,
+          ].join("\n");
+        }
+
+        const kind = selectedGiftKind || "milkTea";
+        const info = giftKindInfo(kind);
+        return [
+          `最后的小惊喜我想送你：${info.label}。`,
+          `因为：${info.reason}。`,
+          `等你愿意，我们就从“今天一个小步骤”开始，然后再一起把甜甜的收尾落实。`,
+        ].join("\n");
+      }
+
+      function startBreath(seconds) {
+        if (!startBtn || !timerDisplay) return;
+        if (breathTimer) return;
+
+        breathLeft = Number(seconds) || 20;
+        startBtn.disabled = true;
+        if (breathBox) breathBox.hidden = false;
+        if (breathText) breathText.textContent = "吸气…停 1 秒…呼气…再来一次";
+        timerDisplay.textContent = `${breathLeft} 秒`;
+
+        breathTimer = setInterval(() => {
+          breathLeft -= 1;
+          if (breathLeft <= 0) {
+            clearInterval(breathTimer);
+            breathTimer = null;
+            startBtn.disabled = false;
+            if (breathText) breathText.textContent = "完成！现在进入第 2 步：复述她的话（不反驳）。";
+            if (breathBox) breathBox.hidden = false;
+            toastText("急救完成：开始倾听与复述");
+            timerDisplay.textContent = "0 秒";
+            return;
+          }
+          timerDisplay.textContent = `${breathLeft} 秒`;
+        }, 1000);
+      }
+
+      function stopBreath() {
+        if (breathTimer) clearInterval(breathTimer);
+        breathTimer = null;
+        breathLeft = 0;
+        if (breathBox) breathBox.hidden = true;
+        if (breathText) breathText.textContent = "好的，直接进入第 2 步：复述她的话。";
+        if (startBtn) startBtn.disabled = false;
+      }
+
+      // listeners
+      if (startBtn) startBtn.addEventListener("click", () => startBreath(20));
+      if (skipBtn) skipBtn.addEventListener("click", () => {
+        stopBreath();
+        toastText("好的，我们开始复述与沟通");
+      });
+
+      if (genListenBtn)
+        genListenBtn.addEventListener("click", () => {
+          if (!listenInput) return;
+          const raw = listenInput.value;
+          const out = generateListenScript(raw);
+          if (!out) {
+            toastText("先填一下她说了什么");
+            return;
+          }
+          listenOutput.value = out;
+          toastText("已生成倾听话术");
+        });
+
+      if (copyListenBtn)
+        copyListenBtn.addEventListener("click", () => copyText(listenOutput && listenOutput.value));
+
+      if (genNvcBtn)
+        genNvcBtn.addEventListener("click", async () => {
+          const aiText = await tryAiGenerate("/v1/ai/anger/nvc", {
+            wifeName: wifeName(),
+            issueType: issueTypeEl ? issueTypeEl.value : "other",
+            obs: obsEl ? obsEl.value : "",
+            feel: feelEl ? feelEl.value : "",
+            need: needEl ? needEl.value : "",
+            request: reqEl ? reqEl.value : "",
+          });
+          if (aiText) {
+            nvcOutput.value = aiText;
+            toastText("AI 已生成 NVC 话术");
+            return;
+          }
+
+          const out = generateNvcScript();
+          if (!out) return;
+          nvcOutput.value = out;
+          const aiBase = getProxyBase();
+          toastText(aiBase ? "AI不可用，已回退本地 NVC 话术" : "已使用本地 NVC 话术");
+        });
+
+      if (copyNvcBtn)
+        copyNvcBtn.addEventListener("click", () => copyText(nvcOutput && nvcOutput.value));
+
+      if (genDialogueBtn)
+        genDialogueBtn.addEventListener("click", async () => {
+          const aiText = await tryAiGenerate("/v1/ai/anger/dialogue", {
+            wifeName: wifeName(),
+            issueType: issueTypeEl ? issueTypeEl.value : "other",
+            concern: concernEl ? concernEl.value : "",
+            desired: desiredEl ? desiredEl.value : "",
+          });
+          if (aiText) {
+            dialogueOutput.value = aiText;
+            toastText("AI 已生成关键对话方案");
+            return;
+          }
+
+          const out = generateDialogueScript();
+          dialogueOutput.value = out;
+          const aiBase = getProxyBase();
+          toastText(aiBase ? "AI不可用，已回退本地关键对话方案" : "已使用本地关键对话方案");
+        });
+
+      if (copyDialogueBtn)
+        copyDialogueBtn.addEventListener("click", () => copyText(dialogueOutput && dialogueOutput.value));
+
+      if (jokeBtn)
+        jokeBtn.addEventListener("click", async () => {
+          const ok = await nextJoke();
+          const aiBase = getProxyBase();
+          toastText(ok ? "AI 笑话已准备好" : aiBase ? "AI不可用，已回退本地笑话" : "笑点已准备好");
+        });
+
+      if (copyJokeBtn)
+        copyJokeBtn.addEventListener("click", () => copyText(jokeOutput && jokeOutput.value));
+
+      if (giftKindButtons && giftKindButtons.length > 0) {
+        giftKindButtons.forEach((btn) => {
+          btn.addEventListener("click", () => {
+            selectedGiftKind = btn.dataset.giftKind || null;
+            selectedLedgerRewardId = null;
+            if (giftHint) {
+              const info = giftKindInfo(selectedGiftKind);
+              giftHint.textContent = `已选：${info.label}（收尾甜甜的）`;
+            }
+            renderLedgerGiftButtons();
+            giftOutput.value = "";
+          });
+        });
+      }
+
+      if (genGiftBtn)
+        genGiftBtn.addEventListener("click", () => {
+          const out = generateGiftOutput();
+          giftOutput.value = out;
+          toastText("收尾话术已生成");
+        });
+
+      if (copyGiftBtn)
+        copyGiftBtn.addEventListener("click", () => copyText(giftOutput && giftOutput.value));
+
+      if (finalBtn)
+        finalBtn.addEventListener("click", () => {
+          const listen = normalizeText(listenOutput && listenOutput.value);
+          const nvc = normalizeText(nvcOutput && nvcOutput.value);
+          const dialogue = normalizeText(dialogueOutput && dialogueOutput.value);
+          const joke = normalizeText(jokeOutput && jokeOutput.value);
+          let gift = normalizeText(giftOutput && giftOutput.value);
+          if (!gift && typeof generateGiftOutput === "function") {
+            gift = normalizeText(generateGiftOutput());
+          }
+
+          const parts = [];
+          parts.push(`${wifeName()}，先暂停一下。我在认真听你，也会用更温柔的方式解决问题。`);
+
+          if (listen) parts.push(listen);
+          if (nvc) parts.push(`\n（非暴力沟通 NVC）\n${nvc}`);
+          if (dialogue) parts.push(`\n（关键对话：解决方案）\n${dialogue}`);
+
+          if (joke) parts.push(`\n给你一个小笑话：\n${joke}`);
+          if (gift) parts.push(`\n最后的小惊喜：\n${gift}`);
+
+          parts.push(`\n我们先从“你愿意的那个下一步”开始。你觉得我们现在选哪个更合适？`);
+          finalOutput.value = safeLineBreak(parts.join("\n"));
+          toastText("完整话术已生成");
+        });
+
+      if (copyFinalBtn)
+        copyFinalBtn.addEventListener("click", () => copyText(finalOutput && finalOutput.value));
+
+      // init
+      try {
+        selectedGiftKind = "milkTea";
+        selectedLedgerRewardId = null;
+        if (giftHint) {
+          const info = giftKindInfo(selectedGiftKind);
+          giftHint.textContent = `默认收尾：${info.label}（甜甜降温）`;
+        }
+        renderLedgerGiftButtons();
+        if (giftOutput) giftOutput.value = generateGiftOutput();
+        nextJoke();
+      } catch (e) {
+        // ignore assistant init errors
+      }
+    })();
   </script>
 </body>
 </html>
