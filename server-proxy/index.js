@@ -130,7 +130,11 @@ app.get("/health", (_, res) => {
         "Firestore not configured: set valid FIREBASE_SERVICE_ACCOUNT_JSON in Railway Variables (full service account JSON)",
     });
   }
-  res.json({ ok: true, firestore: true });
+  res.json({
+    ok: true,
+    firestore: true,
+    geminiApiKeyConfigured: Boolean(GEMINI_API_KEY && String(GEMINI_API_KEY).trim()),
+  });
 });
 
 async function verifyIdTokenFromRequest(req, res) {
