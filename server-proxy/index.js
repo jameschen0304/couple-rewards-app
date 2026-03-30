@@ -134,6 +134,7 @@ app.get("/health", (_, res) => {
     ok: true,
     firestore: true,
     geminiApiKeyConfigured: Boolean(GEMINI_API_KEY && String(GEMINI_API_KEY).trim()),
+    geminiApiKeyPresent: Object.prototype.hasOwnProperty.call(process.env, "GEMINI_API_KEY"),
   });
 });
 
