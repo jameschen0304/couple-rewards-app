@@ -1,0 +1,20 @@
+---
+description: After local code changes, commit and push to GitHub by default
+alwaysApply: true
+---
+
+# Git：本地更新后推送到 GitHub
+
+在完成对本仓库的修改并提交后，**默认**将变更推送到远程（GitHub），除非用户明确说不要推送、仅本地保留，或当前环境无法访问网络/未配置远程。
+
+## 预期流程
+
+1. 确认改动有意义且可提交（必要时跑测试或检查）。
+2. `git status` 确认待提交文件。
+3. 使用清晰的中文或英文提交信息执行 `git commit`（若用户已提供信息则按其要求）。
+4. **`git push`** 到当前分支跟踪的 `origin`（或项目实际使用的远程名）。
+
+## 例外
+
+- 用户说「不要 push」「只本地」等：不推送。
+- 无提交权限、无远程、或 push 失败：说明原因并给出可手动执行的命令，不反复盲目重试。
